@@ -110,7 +110,7 @@ export function initialState(now = new Date()) {
     cycleStart: isoDate(now),
     deload: null, // { start } durante a semana de deload
     body: [], // { date, kg }
-    profile: { sex: 'M', age: null, height: null, bf: null, hours: 5 },
+    profile: { sex: 'M', age: null, height: null, bf: null, hours: 5, phase: 'crescer', adjust: 0, adjustAt: null },
   };
 }
 
@@ -323,32 +323,69 @@ export function weightTrend(entries, now) {
   };
 }
 
-// Ajuste de calorias no ganho de massa conforme o ritmo semanal.
-export function bulkAdvice(rate, min, max) {
-  if (rate == null) return null;
-  if (rate < min) return { level: 'pouco', kcal: 150 };
-  if (rate > max) return { level: 'muito', kcal: -150 };
-  return { level: 'ok', kcal: 0 };
+// ---------- fases da dieta ----------
+
+// Calorias em relação ao gasto diário e divisão de macros (% proteína / carbo / gordura).
+export const PHASES = {
+  crescer: { label: 'Crescer', factor: 1.1, split: [25, 55, 20] },
+  secar: { label: 'Secar', factor: 0.8, split: [40, 40, 20] },
+  manter: { label: 'Manter', factor: 1.0, split: [30, 50, 20] },
+};
+
+// Faixa de variação de peso por semana considerada boa em cada fase (kg/semana).
+export function phaseRange(phase, weightKg, settings) {
+  if (phase === 'secar') return { min: round2(-0.01 * weightKg), max: round2(-0.005 * weightKg) };
+  if (phase === 'manter') return { min: -0.2, max: 0.2 };
+  return { min: settings.gainMin, max: settings.gainMax };
+}
+
+// O que fazer com as calorias, olhando o ritmo da última semana.
+export function phaseAdvice(phase, rate, weightKg, settings) {
+  if (rate == null || !(weightKg > 0)) return null;
+  const r = phaseRange(phase, weightKg, settings);
+  if (rate < r.min) return { level: 'comer-mais', kcal: 150, range: r };
+  if (rate > r.max) return { level: 'comer-menos', kcal: -150, range: r };
+  return { level: 'ok', kcal: 0, range: r };
+}
+
+// Pontos de troca de fase pelo % de gordura: crescer até ~17% e secar até ~10% (homens).
+export function phaseBfAlert(phase, bf, sex) {
+  if (!(bf > 0)) return null;
+  const high = sex === 'F' ? 27 : 17;
+  const low = sex === 'F' ? 20 : 10;
+  if (phase === 'crescer' && bf >= high) return { to: 'secar', limit: high };
+  if (phase === 'secar' && bf <= low) return { to: 'crescer', limit: low };
+  return null;
 }
 
 // Gasto diário pelo livro: metabolismo basal × fator de atividade
 // (1,2 até 3 h de exercício por semana, 1,35 de 4 a 6 h, 1,5 acima de 6 h).
+// A meta é o gasto × fator da fase, mais o ajuste acumulado (kcal).
 export function calories(profile, weightKg) {
-  const { sex = 'M', age, height, bf, hours } = profile || {};
+  const { sex = 'M', age, height, bf, hours, phase = 'crescer', adjust = 0 } = profile || {};
   if (!(weightKg > 0)) return null;
   let bmr;
-  if (bf > 0 && bf < 60) bmr = 370 + 21.6 * weightKg * (1 - bf / 100); // Katch-McArdle
-  else if (age > 0 && height > 0) bmr = 10 * weightKg + 6.25 * height - 5 * age + (sex === 'F' ? -161 : 5); // Mifflin-St Jeor
-  else return null;
+  let method;
+  if (bf > 0 && bf < 60) {
+    bmr = 370 + 21.6 * weightKg * (1 - bf / 100); // Katch-McArdle
+    method = 'katch';
+  } else if (age > 0 && height > 0) {
+    bmr = 10 * weightKg + 6.25 * height - 5 * age + (sex === 'F' ? -161 : 5); // Mifflin-St Jeor
+    method = 'mifflin';
+  } else return null;
   const factor = hours > 6 ? 1.5 : hours >= 4 ? 1.35 : 1.2;
   const tdee = bmr * factor;
-  const bulk = tdee * 1.1;
+  const ph = PHASES[phase] ?? PHASES.crescer;
+  const target = Math.round(tdee * ph.factor + (adjust || 0));
+  const [p, c, f] = ph.split;
   return {
+    method,
     bmr: Math.round(bmr),
     tdee: Math.round(tdee),
-    bulk: Math.round(bulk),
-    protein: Math.round((bulk * 0.25) / 4),
-    carbs: Math.round((bulk * 0.55) / 4),
-    fat: Math.round((bulk * 0.2) / 9),
+    target,
+    split: ph.split,
+    protein: Math.round((target * p) / 100 / 4),
+    carbs: Math.round((target * c) / 100 / 4),
+    fat: Math.round((target * f) / 100 / 9),
   };
 }

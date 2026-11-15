@@ -25,7 +25,7 @@ A carga com que você termina um exercício vira a carga sugerida no próximo tr
 - **Anilhas por lado**: para exercícios com barra, mostra quais anilhas colocar (barra e anilhas configuráveis em Ajustes)
 - **Anotações por série** (ex.: "dor no ombro"), mostradas de novo no próximo treino do exercício
 - **Semana de deload**: ao iniciar, as cargas aparecem a ~60% e os treinos não mexem na progressão
-- **Corpo**: registro do peso com média de 7 dias, ritmo semanal de ganho e ajuste de calorias, e calculadora de calorias e macros para ganho de massa
+- **Corpo**: escolha a fase (**Crescer**, **Secar** ou **Manter**) e o app mostra a meta de calorias e macros do dia. Com o peso registrado, ele diz se você deve comer mais, menos ou continuar igual, e aplica o ajuste na meta com um toque. Também avisa quando trocar de fase pelo % de gordura (~17% para secar, ~10% para voltar a crescer)
 - Histórico com gráfico da carga e do 1RM estimado por exercício
 - Aviso de deload a cada 8 semanas (configurável)
 - Backup: exportar e importar um arquivo `.json`

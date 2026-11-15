@@ -104,8 +104,8 @@ test('tendência do peso e conselho do bulking', () => {
   ];
   const t = L.weightTrend(body, now);
   assert.equal(t.rate, 0.3);
-  assert.equal(L.bulkAdvice(t.rate, 0.1, 0.25).level, 'muito');
-  assert.equal(L.bulkAdvice(0.05, 0.1, 0.25).level, 'pouco');
+  assert.equal(L.phaseAdvice('crescer', t.rate, 80, S).level, 'comer-menos');
+  assert.equal(L.phaseAdvice('crescer', 0.05, 80, S).level, 'comer-mais');
   assert.equal(L.weightTrend([{ date: '2026-01-14', kg: 80 }], now).rate, null);
 });
 
@@ -116,4 +116,29 @@ test('calorias: Katch-McArdle com % de gordura, Mifflin sem', () => {
   const m = L.calories({ sex: 'M', age: 30, height: 180, hours: 2 }, 80);
   assert.equal(m.bmr, 1780);
   assert.equal(L.calories({}, 80), null);
+});
+
+test('fases: meta de calorias e macros', () => {
+  const base = { bf: 15, hours: 5 };
+  const tdee = L.calories(base, 80).tdee;
+  const secar = L.calories({ ...base, phase: 'secar' }, 80);
+  assert.equal(secar.target, Math.round((370 + 21.6 * 68) * 1.35 * 0.8));
+  assert.equal(secar.protein, Math.round((secar.target * 0.4) / 4));
+  assert.equal(L.calories({ ...base, phase: 'manter' }, 80).target, tdee);
+  assert.equal(L.calories({ ...base, phase: 'manter', adjust: 150 }, 80).target, tdee + 150);
+});
+
+test('fases: ritmo bom e conselhos', () => {
+  assert.deepEqual(L.phaseRange('secar', 80, S), { min: -0.8, max: -0.4 });
+  assert.equal(L.phaseAdvice('secar', -0.6, 80, S).level, 'ok');
+  assert.equal(L.phaseAdvice('secar', -0.1, 80, S).level, 'comer-menos');
+  assert.equal(L.phaseAdvice('secar', -1.2, 80, S).level, 'comer-mais');
+  assert.equal(L.phaseAdvice('manter', 0.1, 80, S).level, 'ok');
+  assert.equal(L.phaseAdvice('manter', null, 80, S), null);
+});
+
+test('fases: troca pelo % de gordura', () => {
+  assert.deepEqual(L.phaseBfAlert('crescer', 17.5, 'M'), { to: 'secar', limit: 17 });
+  assert.deepEqual(L.phaseBfAlert('secar', 10, 'M'), { to: 'crescer', limit: 10 });
+  assert.equal(L.phaseBfAlert('crescer', 13, 'M'), null);
 });

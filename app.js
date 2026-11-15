@@ -341,76 +341,148 @@ function bodyChart(body) {
   <div class="legend"><span><i></i>Média de 7 dias</span><span><i class="l2 dot"></i>Pesagens</span></div>`;
 }
 
+const PHASE_INFO = {
+  crescer: {
+    sub: 'Ganhar músculo comendo um pouco a mais',
+    vs: 'um pouco acima (+10%) do que você gasta',
+    tips: ['Bata a meta de proteína todo dia: ela é a prioridade.', 'Não precisa comer tudo o que vê. Um pouco acima do gasto já basta.'],
+  },
+  secar: {
+    sub: 'Perder gordura sem perder músculo',
+    vs: 'abaixo (−20%) do que você gasta',
+    tips: ['Proteína alta protege seus músculos durante a dieta.', 'Continue treinando pesado, com as mesmas cargas.', 'Uma refeição livre por semana ajuda a aguentar a dieta.'],
+  },
+  manter: {
+    sub: 'Ficar no mesmo peso',
+    vs: 'igual ao que você gasta',
+    tips: ['Coma perto da meta e mantenha a proteína alta.'],
+  },
+};
+
+function rangeText(phase, r) {
+  if (phase === 'secar') return `perder de ${kg(-r.max)} a ${kg(-r.min)} kg por semana`;
+  if (phase === 'manter') return `ficar entre −${kg(-r.min)} e +${kg(r.max)} kg por semana`;
+  return `ganhar de ${kg(r.min)} a ${kg(r.max)} kg por semana`;
+}
+
+function whyText(phase, level) {
+  if (level === 'comer-mais') {
+    return phase === 'secar' ? 'Você está perdendo peso rápido demais, e isso leva músculo junto.'
+      : phase === 'crescer' ? 'Você não está ganhando peso suficiente para crescer.'
+      : 'Seu peso está caindo.';
+  }
+  return phase === 'secar' ? 'A perda de peso está devagar.'
+    : phase === 'crescer' ? 'Você está ganhando peso rápido demais, e o excesso vira gordura.'
+    : 'Seu peso está subindo.';
+}
+
 function viewCorpo() {
   const s = state.settings;
-  const body = state.body;
-  const today = L.isoDate(new Date());
-  const tr = L.weightTrend(body, new Date());
-  const adv = L.bulkAdvice(tr.rate, s.gainMin, s.gainMax);
-  const lastKg = body.at(-1)?.kg ?? null;
   const pr = state.profile;
-  const cal = L.calories(pr, tr.last ?? lastKg);
-  const bfLimit = pr.sex === 'F' ? 27 : 17;
-  const range = `${kg(s.gainMin)}–${kg(s.gainMax)} kg/semana`;
-  const advText = {
-    pouco: `Ganho abaixo de ${range}. Aumente cerca de 150 kcal por dia (uns 35 g de carboidrato) e reavalie em 2 semanas.`,
-    ok: `Ritmo bom para ganhar músculo com pouca gordura (${range}). Mantenha as calorias.`,
-    muito: `Ganho acima de ${range}: provavelmente está entrando gordura demais. Reduza cerca de 150 kcal por dia.`,
-  };
-  const sign = (n) => (n > 0 ? '+' : '') + kg(n);
+  const phase = L.PHASES[pr.phase] ? pr.phase : 'crescer';
+  const info = PHASE_INFO[phase];
+  const body = state.body;
+  const now = new Date();
+  const today = L.isoDate(now);
+  const tr = L.weightTrend(body, now);
+  const lastKg = body.at(-1)?.kg ?? null;
+  const refKg = tr.last ?? lastKg;
+  const cal = L.calories({ ...pr, phase }, refKg);
+  const adv = L.phaseAdvice(phase, tr.rate, refKg, s);
+  const bfAlert = L.phaseBfAlert(phase, pr.bf, pr.sex);
+  const adjustedRecently = pr.adjustAt && (now - L.parseIsoDate(pr.adjustAt)) / 864e5 < 7;
+  const dadosOpen = ui.dadosOpen ?? !cal;
+  const signed = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${kg(Math.abs(n))}`;
 
-  return `<section class="card">
-      <h3>Registrar peso</h3>
+  // 1) fase
+  const phases = `<section class="card">
+      <h3>Qual é a sua fase agora?</h3>
+      <div class="phases">
+        ${Object.entries(L.PHASES).map(([k, p]) => `<button type="button" class="phase-btn" data-act="phase" data-phase="${k}" aria-pressed="${k === phase}">
+            <b>${p.label}</b><span>${PHASE_INFO[k].sub}</span>
+          </button>`).join('')}
+      </div>
+    </section>`;
+
+  // 2) meta do dia
+  const meta = cal
+    ? `<section class="card">
+        <h3>Sua meta por dia</h3>
+        <p class="kcal-big"><b>${cal.target.toLocaleString('pt-BR')}</b> kcal</p>
+        <p class="small muted">Isso é ${info.vs} (${cal.tdee.toLocaleString('pt-BR')} kcal)${pr.adjust ? `, já com o ajuste de ${signed(pr.adjust)} kcal` : ''}.</p>
+        <div class="macros">
+          <div class="prot"><span class="small">Proteína</span><b>${cal.protein} g</b></div>
+          <div><span class="small">Carboidrato</span><b>${cal.carbs} g</b></div>
+          <div><span class="small">Gordura</span><b>${cal.fat} g</b></div>
+        </div>
+        <ul class="tips small">${info.tips.map((t) => `<li>${t}</li>`).join('')}</ul>
+        ${pr.adjust ? `<button class="btn ghost small" data-act="adjust-reset">Zerar ajuste de ${signed(pr.adjust)} kcal</button>` : ''}
+      </section>`
+    : `<section class="card">
+        <h3>Sua meta por dia</h3>
+        <p class="small muted" style="margin-top:6px">Para calcular, ${refKg == null ? 'registre seu peso abaixo e ' : ''}preencha <b>Seus dados</b> (idade e altura).</p>
+      </section>`;
+
+  // 3) como está indo
+  let status;
+  if (!adv) {
+    status = `<p class="pill neutral">Ainda sem dados suficientes</p>
+      <p class="small muted">Pese-se pelo menos 3 vezes por semana. Depois de 2 semanas o app diz se você deve comer mais, menos ou continuar igual.${tr.last != null ? ` Média dos últimos 7 dias: <b>${kg(tr.last)} kg</b>.` : ''}</p>`;
+  } else if (adv.level !== 'ok' && adjustedRecently) {
+    status = `<p class="pill neutral">⏳ Ajuste aplicado, aguardando</p>
+      <p>Você ajustou a meta em ${fmtDate(pr.adjustAt)}. Siga a nova meta e espere uma semana para o peso responder; depois o app avalia de novo.</p>`;
+  } else {
+    const pill = { ok: ['ok', '✓ No ritmo certo'], 'comer-mais': ['up', '↑ Coma um pouco mais'], 'comer-menos': ['down', '↓ Coma um pouco menos'] }[adv.level];
+    const moved = tr.rate === 0 ? 'seu peso ficou igual' : `você ${tr.rate > 0 ? 'ganhou' : 'perdeu'} <b>${kg(Math.abs(tr.rate))} kg</b>`;
+    status = `<p class="pill ${pill[0]}">${pill[1]}</p>
+      <p>Na última semana ${moved}. Na fase <b>${L.PHASES[phase].label}</b>, o ideal é ${rangeText(phase, adv.range)}.</p>
+      ${adv.level === 'ok'
+        ? '<p class="small muted">Continue com a mesma meta de calorias.</p>'
+        : `<p class="small muted">${whyText(phase, adv.level)} ${adv.kcal > 0 ? 'Some' : 'Tire'} ${kg(Math.abs(adv.kcal))} kcal por dia na sua meta.</p>
+          ${cal ? `<button class="btn primary" data-act="adjust-apply" data-kcal="${adv.kcal}">Aplicar: ${signed(adv.kcal)} kcal na meta</button>` : ''}`}`;
+  }
+  const bfBox = bfAlert
+    ? `<div class="banner agora"><strong>${bfAlert.to === 'secar' ? `Você chegou a ~${bfAlert.limit}% de gordura` : `Você chegou a ~${bfAlert.limit}% de gordura: ótimo!`}</strong>
+        <p class="small">${bfAlert.to === 'secar' ? 'O livro sugere parar de crescer aqui e fazer uma fase de secar.' : 'O livro sugere voltar a crescer a partir daqui.'}</p>
+        <button class="btn small primary" data-act="phase" data-phase="${bfAlert.to}">Mudar para ${L.PHASES[bfAlert.to].label}</button></div>`
+    : '';
+
+  const progress = `<section class="card">
+      <h3>Como está indo</h3>
       <div class="bodyrow">
         <label class="field">Data<input type="date" id="body-date" value="${today}" max="${today}"></label>
-        <label class="field">Peso (kg)<input id="body-kg" inputmode="decimal" placeholder="${lastKg != null ? String(lastKg).replace('.', ',') : 'ex.: 80,5'}"></label>
+        <label class="field">Peso hoje (kg)<input id="body-kg" inputmode="decimal" placeholder="${lastKg != null ? String(lastKg).replace('.', ',') : 'ex.: 80,5'}"></label>
         <button class="btn primary" data-act="body-add">Salvar</button>
       </div>
-      <p class="small muted">Pese-se de manhã, em jejum e depois do banheiro, pelo menos 3 vezes por semana. O que vale é a média, não o dia.</p>
-    </section>
-
-    <section class="card">
-      <h3>Ritmo do ganho de massa</h3>
-      ${tr.rate == null
-        ? `<p class="small muted" style="margin-top:6px">Registre o peso por 2 semanas para o app calcular o ritmo semanal.${tr.last != null ? ` Média dos últimos 7 dias: <b>${kg(tr.last)} kg</b>.` : ''}</p>`
-        : `<p class="bigstat"><b>${sign(tr.rate)} kg</b> <span class="muted small">na última semana</span></p>
-           <p class="small muted">Média de 7 dias: ${kg(tr.last)} kg (semana anterior: ${kg(tr.prev)} kg)</p>
-           <div class="advice ${adv.level === 'ok' ? 'subir' : adv.level === 'muito' ? 'voltar' : 'manter'}">${advText[adv.level]}</div>`}
-      ${pr.bf >= bfLimit ? `<p class="warn">⚠ Com ${kg(pr.bf)}% de gordura, o livro sugere encerrar o ganho de massa (~${bfLimit}%) e fazer uma fase de secar.</p>` : ''}
+      <p class="small muted">Dica: pese-se de manhã, em jejum. O peso varia de um dia para o outro; o que vale é a média da semana.</p>
+      <div class="status">${status}</div>
+      ${bfBox}
       ${body.length >= 2 ? bodyChart(body) : ''}
-    </section>
+    </section>`;
 
-    <section class="card">
-      <h3>Calorias e macros para crescer</h3>
+  // 4) dados
+  const dados = `<details class="card dados" id="dados" ${dadosOpen ? 'open' : ''}>
+      <summary><b>Seus dados</b> <span class="small muted">usados para calcular a meta</span></summary>
       <div class="ex-edit" style="border:0"><div class="grid">
         <label class="field wide">Sexo<select data-prof="sex"><option value="M" ${pr.sex !== 'F' ? 'selected' : ''}>Masculino</option><option value="F" ${pr.sex === 'F' ? 'selected' : ''}>Feminino</option></select></label>
         <label class="field wide">Idade<input inputmode="numeric" data-prof="age" value="${pr.age ?? ''}" placeholder="anos"></label>
         <label class="field wide">Altura (cm)<input inputmode="numeric" data-prof="height" value="${pr.height ?? ''}" placeholder="ex.: 178"></label>
-        <label class="field wide">% de gordura (opcional)<input inputmode="decimal" data-prof="bf" value="${pr.bf != null ? String(pr.bf).replace('.', ',') : ''}" placeholder="ex.: 13"></label>
-        <label class="field full">Horas de exercício por semana<input inputmode="decimal" data-prof="hours" value="${pr.hours != null ? String(pr.hours).replace('.', ',') : ''}" placeholder="ex.: 5"></label>
+        <label class="field wide">% de gordura (se souber)<input inputmode="decimal" data-prof="bf" value="${pr.bf != null ? String(pr.bf).replace('.', ',') : ''}" placeholder="ex.: 13"></label>
+        <label class="field full">Horas de treino por semana<input inputmode="decimal" data-prof="hours" value="${pr.hours != null ? String(pr.hours).replace('.', ',') : ''}" placeholder="ex.: 5"></label>
       </div></div>
-      ${cal
-        ? `<div class="kcal">
-            <div><span class="muted small">Gasto diário estimado</span><b>${cal.tdee.toLocaleString('pt-BR')} kcal</b></div>
-            <div class="hl"><span class="small">Meta para crescer (+10%)</span><b>${cal.bulk.toLocaleString('pt-BR')} kcal</b></div>
-          </div>
-          <div class="macros">
-            <div><b>${cal.protein} g</b><span class="muted small">proteína (25%)</span></div>
-            <div><b>${cal.carbs} g</b><span class="muted small">carboidrato (55%)</span></div>
-            <div><b>${cal.fat} g</b><span class="muted small">gordura (20%)</span></div>
-          </div>
-          <p class="small muted">Calculado com ${kg(tr.last ?? lastKg)} kg e ${pr.bf ? 'Katch-McArdle (usa o % de gordura)' : 'Mifflin-St Jeor'}. É um ponto de partida: quem manda é o ritmo de ganho acima.</p>`
-        : `<p class="small muted">Registre seu peso e preencha idade e altura (ou o % de gordura) para calcular.</p>`}
-    </section>
+      <p class="small muted">Como é calculado: o app estima quanto você gasta por dia (metabolismo × nível de atividade${cal ? `, usando ${kg(refKg)} kg e ${cal.method === 'katch' ? 'seu % de gordura' : 'idade e altura'}` : ''}) e aplica a fase: +10% para crescer, −20% para secar. Proteína, carboidrato e gordura seguem a divisão do livro para cada fase (${Object.values(L.PHASES).map((p) => `${p.label.toLowerCase()} ${p.split.join('/')}`).join(', ')}).</p>
+    </details>`;
 
-    ${body.length ? `<h3 class="section">Pesagens</h3>
+  const list = body.length ? `<h3 class="section">Pesagens</h3>
     <section class="card">
       <table>
         <thead><tr><th>Data</th><th>Peso</th><th></th></tr></thead>
         <tbody>${body.slice().reverse().slice(0, 20).map((e) => `<tr><td>${fmtDateLong(e.date)}</td><td>${kg(e.kg)} kg</td>
           <td style="text-align:right"><button class="btn ghost icon small danger" data-act="body-del" data-date="${e.date}" aria-label="Apagar pesagem de ${fmtDate(e.date)}">✕</button></td></tr>`).join('')}</tbody>
       </table>
-    </section>` : ''}`;
+    </section>` : '';
+
+  return phases + meta + progress + dados + list;
 }
 
 function viewPlano() {
@@ -479,7 +551,7 @@ function viewConfig() {
       </div></div>
     </section>
     <section class="card">
-      <h3>Ritmo do ganho de massa</h3>
+      <h3>Ritmo bom na fase Crescer</h3>
       <p class="small muted">Faixa de ganho por semana considerada boa. Para quem já é avançado, algo como 0,1–0,25 kg; iniciantes podem ganhar mais rápido.</p>
       <div class="ex-edit" style="border:0"><div class="grid">
         <label class="field wide">Mínimo (kg/semana)<input inputmode="decimal" data-sf="gainMin" value="${String(s.gainMin).replace('.', ',')}"></label>
@@ -633,6 +705,34 @@ const actions = {
     state.body.sort((a, b) => a.date.localeCompare(b.date));
     save();
     toast('Peso registrado.');
+    render();
+  },
+
+  phase(el) {
+    const ph = el.dataset.phase;
+    if (state.profile.phase === ph) return;
+    state.profile.phase = ph;
+    state.profile.adjust = 0;
+    state.profile.adjustAt = null;
+    save();
+    toast(`Fase: ${L.PHASES[ph].label}`);
+    render();
+    window.scrollTo(0, 0);
+  },
+
+  'adjust-apply'(el) {
+    const k = Number(el.dataset.kcal);
+    state.profile.adjust = (state.profile.adjust || 0) + k;
+    state.profile.adjustAt = L.isoDate(new Date());
+    save();
+    toast(`Meta ajustada em ${k > 0 ? '+' : '−'}${Math.abs(k)} kcal.`);
+    render();
+  },
+
+  'adjust-reset'() {
+    state.profile.adjust = 0;
+    state.profile.adjustAt = null;
+    save();
     render();
   },
 
@@ -995,6 +1095,10 @@ document.addEventListener('change', async (ev) => {
     }
   }
 });
+
+document.addEventListener('toggle', (ev) => {
+  if (ev.target.id === 'dados') ui.dadosOpen = ev.target.open;
+}, true);
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) renderTimer();
