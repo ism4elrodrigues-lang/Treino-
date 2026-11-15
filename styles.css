@@ -190,7 +190,7 @@ details.sess ul { padding-left: 18px; margin: 8px 0 0; }
   position: fixed;
   left: 0; right: 0; bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: var(--card);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
@@ -320,3 +320,43 @@ ol.cues li::marker { color: var(--accent); font-weight: 700; }
 .fig-cable { stroke: var(--muted); stroke-width: 2; }
 
 .ex-edit .grid .full { grid-column: 1 / -1; }
+
+/* ---------- anilhas, aquecimento, anotações, deload ---------- */
+
+.plates { margin: 0 0 6px; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+ul.warm { list-style: none; margin: 0 0 8px; padding: 0; }
+ul.warm li {
+  display: grid;
+  grid-template-columns: 64px auto 1fr;
+  gap: 4px 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+ul.warm li .plates { grid-column: 2 / -1; margin: 0; }
+ul.sets li { grid-template-columns: 64px 1fr auto 40px; }
+ul.sets li .note, ul.sets li .note-in { grid-column: 1 / -1; }
+.note { margin: 0; font-size: .88rem; color: var(--muted); }
+.note-in { font-size: .95rem; min-height: 40px; }
+.note-prev { color: var(--warn); }
+.tag.deload { color: var(--muted); background: var(--card-2); }
+
+label.check { display: flex; gap: 10px; align-items: center; font-size: .9rem; color: var(--text); min-height: 40px; }
+label.check input { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+
+/* ---------- corpo ---------- */
+
+.bodyrow { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin: 10px 0 8px; }
+.bodyrow .btn { min-height: 46px; }
+.bigstat { margin: 8px 0 2px; }
+.bigstat b { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.kcal { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.kcal > div, .macros > div { background: var(--card-2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.kcal b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.kcal .hl { background: color-mix(in srgb, var(--accent) 18%, var(--card-2)); }
+.kcal .hl b { color: var(--accent); }
+.macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.macros b { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.chart .d2 { fill: var(--info); }
+.legend i.dot { width: 7px; height: 7px; border-radius: 50%; }

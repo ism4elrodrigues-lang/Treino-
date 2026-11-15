@@ -11,6 +11,11 @@ export const EQUIP = {
 export const DEFAULT_SETTINGS = {
   restSec: 180,
   deloadWeeks: 8,
+  deloadPct: 60,
+  barKg: 20,
+  plates: [25, 20, 15, 10, 5, 2.5, 1.25],
+  gainMin: 0.1,
+  gainMax: 0.25,
   inc: { barra: 5, halter: 2, maquina: 5, corporal: 2.5 },
 };
 
@@ -103,6 +108,9 @@ export function initialState(now = new Date()) {
     sessions: [],
     active: null,
     cycleStart: isoDate(now),
+    deload: null, // { start } durante a semana de deload
+    body: [], // { date, kg }
+    profile: { sex: 'M', age: null, height: null, bf: null, hours: 5 },
   };
 }
 
@@ -124,6 +132,9 @@ export function migrate(obj) {
     sessions: Array.isArray(obj.sessions) ? obj.sessions : [],
     active: obj.active ?? null,
     cycleStart: obj.cycleStart || base.cycleStart,
+    deload: obj.deload?.start ? obj.deload : null,
+    body: Array.isArray(obj.body) ? obj.body : [],
+    profile: { ...base.profile, ...(obj.profile || {}) },
     version: 1,
   };
 }
@@ -223,4 +234,121 @@ export function exerciseHistory(sessions, exId) {
     });
   }
   return out;
+}
+
+// ---------- anilhas e aquecimento ----------
+
+export const DEFAULT_PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+
+export function roundLoad(x, step) {
+  return round2(Math.round(x / step) * step);
+}
+
+// Menor salto possível numa barra: um par da menor anilha.
+export function barStep(settings) {
+  const plates = settings.plates?.length ? settings.plates : DEFAULT_PLATES;
+  return round2(2 * Math.min(...plates));
+}
+
+// Anilhas de cada lado da barra (guloso, do maior para o menor).
+export function platesPerSide(total, bar, plates) {
+  let side = round2((total - bar) / 2);
+  if (side <= 0) return { perSide: [], rest: round2(Math.min(0, total - bar)) };
+  const perSide = [];
+  for (const p of [...plates].sort((a, b) => b - a)) {
+    while (side >= p - 1e-9) {
+      perSide.push(p);
+      side = round2(side - p);
+    }
+  }
+  return { perSide, rest: round2(side * 2) };
+}
+
+// Aquecimento do livro antes do primeiro exercício pesado do grupo muscular.
+const WARMUP = [
+  { reps: 12, pct: 50, rest: '1 min' },
+  { reps: 10, pct: 50, rest: '1 min' },
+  { reps: 4, pct: 70, rest: '1 min' },
+  { reps: 1, pct: 90, rest: '2–3 min' },
+];
+
+export function warmupSets(workWeight, exercise, settings) {
+  if (!(workWeight > 0)) return [];
+  const isBar = exercise.equip === 'barra';
+  const step = isBar ? barStep(settings) : incFor(exercise, settings) >= 2 ? 2 : 1;
+  const min = isBar ? settings.barKg ?? 20 : 0;
+  return WARMUP.map((w) => ({ ...w, weight: Math.max(min, roundLoad((workWeight * w.pct) / 100, step)) }));
+}
+
+export function isWarmupEx(day, exercise) {
+  if (typeof exercise.warmup === 'boolean') return exercise.warmup;
+  return day.exercises[0]?.id === exercise.id;
+}
+
+// ---------- deload ----------
+
+export function deloadWeight(weight, exercise, settings) {
+  if (weight == null) return null;
+  const pct = settings.deloadPct ?? 60;
+  const isBar = exercise.equip === 'barra';
+  const step = isBar ? barStep(settings) : incFor(exercise, settings);
+  const w = roundLoad((weight * pct) / 100, step);
+  return isBar ? Math.max(settings.barKg ?? 20, w) : w;
+}
+
+export function deloadDay(deload, now) {
+  if (!deload) return null;
+  return Math.floor((now - parseIsoDate(deload.start)) / 864e5) + 1;
+}
+
+// ---------- peso corporal e calorias ----------
+
+// Média dos últimos 7 dias contra a dos 7 anteriores (kg por semana).
+export function weightTrend(entries, now) {
+  const dayMs = 864e5;
+  const today = parseIsoDate(isoDate(now)).getTime();
+  const avg = (from, to) => {
+    const xs = entries.filter((e) => {
+      const t = parseIsoDate(e.date).getTime();
+      return t > today - to * dayMs && t <= today - from * dayMs;
+    }).map((e) => e.kg);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  };
+  const last = avg(0, 7);
+  const prev = avg(7, 14);
+  return {
+    last: last == null ? null : round2(last),
+    prev: prev == null ? null : round2(prev),
+    rate: last != null && prev != null ? round2(last - prev) : null,
+  };
+}
+
+// Ajuste de calorias no ganho de massa conforme o ritmo semanal.
+export function bulkAdvice(rate, min, max) {
+  if (rate == null) return null;
+  if (rate < min) return { level: 'pouco', kcal: 150 };
+  if (rate > max) return { level: 'muito', kcal: -150 };
+  return { level: 'ok', kcal: 0 };
+}
+
+// Gasto diário pelo livro: metabolismo basal × fator de atividade
+// (1,2 até 3 h de exercício por semana, 1,35 de 4 a 6 h, 1,5 acima de 6 h).
+export function calories(profile, weightKg) {
+  const { sex = 'M', age, height, bf, hours } = profile || {};
+  if (!(weightKg > 0)) return null;
+  let bmr;
+  if (bf > 0 && bf < 60) bmr = 370 + 21.6 * weightKg * (1 - bf / 100); // Katch-McArdle
+  else if (age > 0 && height > 0) bmr = 10 * weightKg + 6.25 * height - 5 * age + (sex === 'F' ? -161 : 5); // Mifflin-St Jeor
+  else return null;
+  const factor = hours > 6 ? 1.5 : hours >= 4 ? 1.35 : 1.2;
+  const tdee = bmr * factor;
+  const bulk = tdee * 1.1;
+  return {
+    bmr: Math.round(bmr),
+    tdee: Math.round(tdee),
+    bulk: Math.round(bulk),
+    protein: Math.round((bulk * 0.25) / 4),
+    carbs: Math.round((bulk * 0.55) / 4),
+    fat: Math.round((bulk * 0.2) / 9),
+  };
 }

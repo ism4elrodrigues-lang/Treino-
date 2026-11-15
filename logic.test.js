@@ -71,3 +71,49 @@ test('migrate rejeita arquivo inválido e completa campos', () => {
   assert.equal(s.settings.restSec, 120);
   assert.equal(s.settings.inc.halter, 2);
 });
+
+test('anilhas por lado', () => {
+  assert.deepEqual(L.platesPerSide(85, 20, L.DEFAULT_PLATES), { perSide: [25, 5, 2.5], rest: 0 });
+  assert.deepEqual(L.platesPerSide(20, 20, L.DEFAULT_PLATES).perSide, []);
+  assert.equal(L.platesPerSide(61, 20, L.DEFAULT_PLATES).rest, 1);
+});
+
+test('aquecimento: 50/50/70/90% arredondado e nunca abaixo da barra', () => {
+  const ws = L.warmupSets(100, supino, S);
+  assert.deepEqual(ws.map((w) => [w.reps, w.weight]), [[12, 50], [10, 50], [4, 70], [1, 90]]);
+  assert.equal(L.warmupSets(30, supino, S)[0].weight, 20);
+});
+
+test('aquecimento padrão só no primeiro exercício do dia', () => {
+  const d = L.defaultPlan().days[0];
+  assert.equal(L.isWarmupEx(d, d.exercises[0]), true);
+  assert.equal(L.isWarmupEx(d, d.exercises[1]), false);
+  assert.equal(L.isWarmupEx(d, { ...d.exercises[1], warmup: true }), true);
+});
+
+test('carga de deload a 60%', () => {
+  assert.equal(L.deloadWeight(100, supino, S), 60);
+  assert.equal(L.deloadWeight(85, supino, S), 50); // 51 → 50 (passo de 2,5)
+});
+
+test('tendência do peso e conselho do bulking', () => {
+  const now = new Date(2026, 0, 15);
+  const body = [
+    { date: '2026-01-02', kg: 80 }, { date: '2026-01-05', kg: 80.2 },
+    { date: '2026-01-10', kg: 80.4 }, { date: '2026-01-14', kg: 80.4 },
+  ];
+  const t = L.weightTrend(body, now);
+  assert.equal(t.rate, 0.3);
+  assert.equal(L.bulkAdvice(t.rate, 0.1, 0.25).level, 'muito');
+  assert.equal(L.bulkAdvice(0.05, 0.1, 0.25).level, 'pouco');
+  assert.equal(L.weightTrend([{ date: '2026-01-14', kg: 80 }], now).rate, null);
+});
+
+test('calorias: Katch-McArdle com % de gordura, Mifflin sem', () => {
+  const c = L.calories({ bf: 15, hours: 5 }, 80);
+  assert.equal(c.bmr, Math.round(370 + 21.6 * 68));
+  assert.equal(c.tdee, Math.round((370 + 21.6 * 68) * 1.35));
+  const m = L.calories({ sex: 'M', age: 30, height: 180, hours: 2 }, 80);
+  assert.equal(m.bmr, 1780);
+  assert.equal(L.calories({}, 80), null);
+});
