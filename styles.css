@@ -266,3 +266,57 @@ details.sess ul { padding-left: 18px; margin: 8px 0 0; }
   box-shadow: 0 8px 24px rgb(0 0 0 / .3);
 }
 .toast.error { background: var(--bad); color: #fff; }
+
+/* ---------- desenhos dos exercícios ---------- */
+
+.howto-btn {
+  appearance: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: .92rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  margin: 4px 0 8px;
+  border-radius: 10px;
+  background: var(--card-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+.howto-btn .chev { transition: transform .2s; }
+.howto-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+.howto { display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr); gap: 14px; align-items: center; margin-bottom: 8px; }
+@media (max-width: 520px) { .howto { grid-template-columns: 1fr; } .howto .fig { max-width: 260px; width: 100%; margin: 0 auto; } }
+.howto-text { display: grid; gap: 8px; min-width: 0; }
+.musc { margin: 0; font-size: .82rem; color: var(--muted); }
+.musc b { color: var(--text); font-weight: 600; }
+ol.cues { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: .93rem; }
+ol.cues li::marker { color: var(--accent); font-weight: 700; }
+
+.fig { position: relative; background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; }
+.fig svg { display: block; width: 100%; height: auto; aspect-ratio: 160 / 180; }
+.fig-phase { position: absolute; left: 10px; bottom: 12px; font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.fig-ctl {
+  position: absolute; right: 8px; bottom: 8px;
+  appearance: none; cursor: pointer; font: inherit; font-size: .75rem; font-weight: 700;
+  padding: 4px 10px; min-height: 30px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--card); color: var(--muted);
+}
+.fig-floor { stroke: var(--line); stroke-width: 2; }
+.fig-prop { fill: var(--line); }
+.fig-prop-line { stroke: var(--line); fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.fig-limb { stroke: var(--text); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+.fig-limb.thin { stroke-width: 5; }
+.fig-head { fill: var(--card-2); stroke: var(--text); stroke-width: 5; }
+.fig-plate { fill: color-mix(in srgb, var(--accent) 28%, transparent); stroke: var(--accent); stroke-width: 4; }
+.fig-hub { fill: var(--accent); }
+.fig-sled { stroke: var(--muted); stroke-width: 6; stroke-linecap: round; }
+.fig-cable { stroke: var(--muted); stroke-width: 2; }
+
+.ex-edit .grid .full { grid-column: 1 / -1; }

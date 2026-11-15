@@ -1,4 +1,5 @@
 import * as L from './logic.js';
+import { FIGS, mountHowto } from './figures.js';
 
 const KEY = 'treino-mss-v1';
 const TIMER_KEY = 'treino-mss-timer';
@@ -18,7 +19,13 @@ const TAG = { subir: '▲ subir', manter: '= manter', voltar: '▼ voltar', abai
 // ---------- estado ----------
 
 let state = load();
-const ui = { tab: 'treino', drafts: {}, extra: {}, histEx: null };
+const ui = { tab: 'treino', drafts: {}, extra: {}, histEx: null, howto: {} };
+
+// Desenho do exercício: o escolhido no plano, ou o padrão pelo id do exercício do livro.
+function figKey(ex) {
+  if (typeof ex.fig === 'string') return FIGS[ex.fig] ? ex.fig : null;
+  return FIGS[ex.id] ? ex.id : null;
+}
 
 function load() {
   try {
@@ -66,6 +73,7 @@ function render() {
   const view = $('#view');
   const views = { treino: viewTreino, historico: viewHistorico, plano: viewPlano, config: viewConfig };
   view.innerHTML = views[ui.tab]();
+  view.querySelectorAll('[data-fig]').forEach((el) => mountHowto(el, el.dataset.fig));
 }
 
 function deloadBanner() {
@@ -132,6 +140,14 @@ function exCard(ex) {
   const draft = ui.drafts[ex.id] ?? {};
   const wValue = draft.w ?? (work.next ?? '');
   const inc = L.incFor(ex, state.settings);
+  const fk = figKey(ex);
+  const howtoOpen = !!ui.howto[ex.id];
+  const howto = fk
+    ? `<button type="button" class="howto-btn" data-act="howto" data-ex="${esc(ex.id)}" aria-expanded="${howtoOpen}">
+        <span>Como fazer</span><span class="chev" aria-hidden="true">▾</span>
+      </button>
+      ${howtoOpen ? `<div class="howto" data-fig="${esc(fk)}"></div>` : ''}`
+    : '';
 
   let advice = '';
   if (sets.length) {
@@ -149,6 +165,7 @@ function exCard(ex) {
       <span class="chip">${ex.sets}×${ex.repMin}–${ex.repMax} · +${kg(inc)} kg</span>
     </div>
     <p class="target">${target}</p>
+    ${howto}
     ${prev ? `<p class="prev muted small">Última vez (${fmtDate(prev.date)}): ${prev.sets.map((s) => `${kg(s.weight)}×${s.reps}`).join(' · ')}</p>` : ''}
     ${(start?.stall ?? 0) >= L.STALL_LIMIT ? `<p class="warn">⚠ ${start.stall} treinos sem subir carga. Considere um deload ou trocar a variação do exercício.</p>` : ''}
     ${sets.length ? `<ul class="sets">${sets.map((s, i) => `<li>
@@ -235,7 +252,9 @@ function viewHistorico() {
 }
 
 function viewPlano() {
-  const equipOpts = (sel) => Object.entries(L.EQUIP).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
+  const figOpts = (sel) => `<option value="" ${sel ? '' : 'selected'}>Sem desenho</option>`
+    + Object.entries(FIGS).map(([k, f]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
+  const equipOpts = (sel) =>Object.entries(L.EQUIP).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
   return `<p class="muted small" style="margin-top:4px">Alterações são salvas na hora. O incremento em branco usa o padrão do equipamento (Ajustes).</p>
     ${state.plan.days.map((d, di) => `<section class="card">
       <div class="row">
@@ -258,6 +277,7 @@ function viewPlano() {
           <label class="field">+kg<input inputmode="decimal" data-pf="inc" data-day="${d.id}" data-ex="${e.id}" value="${e.inc ?? ''}" placeholder="${kg(state.settings.inc[e.equip])}"></label>
           <label class="field wide">Equipamento<select data-pf="equip" data-day="${d.id}" data-ex="${e.id}">${equipOpts(e.equip)}</select></label>
           <label class="field wide">Próxima carga (kg)<input inputmode="decimal" data-pf="target" data-day="${d.id}" data-ex="${e.id}" value="${state.prog[e.id]?.weight != null ? String(state.prog[e.id].weight).replace('.', ',') : ''}" placeholder="—"></label>
+          <label class="field full">Desenho<select data-pf="fig" data-day="${d.id}" data-ex="${e.id}">${figOpts(figKey(e))}</select></label>
         </div>
       </div>`).join('')}
       <button class="btn small" style="margin-top:8px" data-act="ex-add" data-day="${d.id}">+ Exercício</button>
@@ -390,6 +410,12 @@ const actions = {
 
   extra(el) {
     ui.extra[el.dataset.ex] = true;
+    render();
+  },
+
+  howto(el) {
+    const id = el.dataset.ex;
+    ui.howto[id] = !ui.howto[id];
     render();
   },
 
@@ -545,6 +571,7 @@ function onPlanField(el) {
   switch (f) {
     case 'name': e.name = el.value.trim() || e.name; break;
     case 'equip': e.equip = el.value; break;
+    case 'fig': e.fig = el.value; break;
     case 'sets': e.sets = int(el.value, 1) ?? e.sets; break;
     case 'repMin': e.repMin = int(el.value, 1) ?? e.repMin; break;
     case 'repMax': e.repMax = int(el.value, 1) ?? e.repMax; break;

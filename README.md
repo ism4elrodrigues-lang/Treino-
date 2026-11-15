@@ -19,6 +19,7 @@ A carga com que você termina um exercício vira a carga sugerida no próximo tr
 
 - Divisão de 5 dias do livro (Peito, Costas, Ombros, Pernas, Braços), editável na aba **Plano**
 - Rodízio automático: o app sugere o próximo dia
+- **Como fazer**: desenho animado de cada exercício (posição inicial → final), músculos trabalhados e 3 dicas de execução. Exercícios novos podem usar qualquer desenho, escolhido no Plano
 - Timer de descanso (3 min por padrão) que começa sozinho, com vibração e bipe
 - Histórico com gráfico da carga e do 1RM estimado por exercício
 - Aviso de deload a cada 8 semanas (configurável)
