@@ -125,6 +125,30 @@ function platesText(ex, weight) {
   return `Por lado: ${txt}${r.rest ? ` (faltam ${kg(r.rest)} kg)` : ''}`;
 }
 
+// Carga de trabalho usada no aquecimento: a 1ª série feita, o que está digitado no campo kg, ou a sugerida.
+function warmBaseFor(ex, sets, work) {
+  if (sets[0]) return sets[0].weight;
+  const d = ui.drafts[ex.id]?.w;
+  return d != null ? num(d) : work.next;
+}
+
+function warmList(ex, base) {
+  if (!(base > 0)) {
+    return `<p class="small muted warm-empty">Digite a carga da 1ª série no campo <b>kg</b> abaixo e o aquecimento é calculado na hora.</p>`;
+  }
+  const ws = L.warmupSets(base, ex, state.settings);
+  const done = state.active?.warmDone?.[ex.id] ?? [];
+  return `<ul class="warm">${ws.map((w, i) => `<li class="${done[i] ? 'done' : ''}">
+      <span class="muted">${w.reps} rep${w.reps > 1 ? 's' : ''}</span>
+      <b>${kg(w.weight)} kg</b>
+      <span class="muted small">${w.pct}% · descanso ${w.rest}</span>
+      <button type="button" class="btn icon small warm-ok${done[i] ? ' on' : ''}" data-act="warm-done" data-ex="${esc(ex.id)}" data-i="${i}" aria-pressed="${!!done[i]}"
+        aria-label="${done[i] ? 'Desmarcar' : 'Feita: iniciar descanso de ' + w.rest}">✓</button>
+      ${ex.equip === 'barra' ? `<span class="plates">${platesText(ex, w.weight)}</span>` : ''}
+    </li>`).join('')}</ul>
+    <p class="small muted">Toque em ✓ ao terminar cada série: o descanso começa sozinho.</p>`;
+}
+
 function exCard(ex, day) {
   const a = state.active;
   const s = state.settings;
@@ -154,19 +178,13 @@ function exCard(ex, day) {
 
   // aquecimento antes da primeira série pesada
   let warm = '';
-  const warmBase = sets[0]?.weight ?? work.next;
-  if (!deload && L.isWarmupEx(day, ex) && warmBase > 0) {
-    const ws = L.warmupSets(warmBase, ex, s);
+  if (!deload && L.isWarmupEx(day, ex)) {
     const open = ui.warm[ex.id] ?? sets.length === 0;
+    const doneN = (a.warmDone?.[ex.id] ?? []).filter(Boolean).length;
     warm = `<button type="button" class="howto-btn" data-act="warm" data-ex="${esc(ex.id)}" aria-expanded="${open}">
-        <span>Aquecimento · ${ws.length} séries</span><span class="chev" aria-hidden="true">▾</span>
+        <span>Aquecimento${doneN ? ` · ${doneN} de 4 feitas` : ' · 4 séries'}</span><span class="chev" aria-hidden="true">▾</span>
       </button>
-      ${open ? `<ul class="warm">${ws.map((w) => `<li>
-          <span class="muted">${w.reps} rep${w.reps > 1 ? 's' : ''}</span>
-          <b>${kg(w.weight)} kg</b>
-          <span class="muted small">${w.pct}% · descanso ${w.rest}</span>
-          ${ex.equip === 'barra' ? `<span class="plates">${platesText(ex, w.weight)}</span>` : ''}
-        </li>`).join('')}</ul>` : ''}`;
+      ${open ? `<div id="warm-${esc(ex.id)}">${warmList(ex, warmBaseFor(ex, sets, work))}</div>` : ''}`;
   }
 
   let advice = '';
@@ -674,6 +692,26 @@ const actions = {
     render();
   },
 
+  'warm-done'(el) {
+    unlockAudio();
+    const a = state.active;
+    const id = el.dataset.ex;
+    const i = Number(el.dataset.i);
+    a.warmDone ??= {};
+    const arr = (a.warmDone[id] ??= []);
+    arr[i] = !arr[i];
+    if (arr[i]) {
+      const ex = findEx(id)?.ex;
+      const sets = a.sets.filter((x) => x.exId === id);
+      const work = L.replay(a.startProg[id] ?? state.prog[id] ?? null, sets, ex, state.settings);
+      const w = L.warmupSets(warmBaseFor(ex, sets, work), ex, state.settings)[i];
+      if (w) startTimer(w.restSec, i === 3 ? 'Antes da série pesada' : 'Descanso do aquecimento');
+      navigator.vibrate?.(30);
+    }
+    save();
+    render();
+  },
+
   note(el) {
     const i = Number(el.dataset.i);
     ui.noteEdit = ui.noteEdit === i ? null : i;
@@ -922,12 +960,13 @@ function onPlanField(el) {
 
 // ---------- timer de descanso ----------
 
-const timer = { end: null, total: 0, alerted: false };
+const timer = { end: null, total: 0, alerted: false, label: 'Descanso' };
 let tickId = null;
 
-function startTimer(sec) {
+function startTimer(sec, label = 'Descanso') {
   timer.end = Date.now() + sec * 1000;
   timer.total = sec;
+  timer.label = label;
   timer.alerted = false;
   persistTimer();
   ensureTick();
@@ -962,7 +1001,7 @@ function renderTimer() {
   const left = Math.max(0, Math.ceil((timer.end - Date.now()) / 1000));
   el.hidden = false;
   $('#timer-text').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-  $('#timer-label').textContent = left ? 'Descanso' : 'Bora, próxima série!';
+  $('#timer-label').textContent = left ? timer.label || 'Descanso' : 'Bora, próxima série!';
   $('#timer-bar').style.width = `${timer.total ? (100 * (timer.total - left)) / timer.total : 100}%`;
   el.classList.toggle('done', left === 0);
   if (left === 0 && !timer.alerted) {
@@ -1015,6 +1054,9 @@ document.addEventListener('input', (ev) => {
   if (el.dataset.draft) {
     const d = (ui.drafts[el.dataset.ex] ??= {});
     d[el.dataset.draft] = el.value;
+    const box = el.dataset.draft === 'w' && document.getElementById(`warm-${el.dataset.ex}`);
+    const found = box && findEx(el.dataset.ex);
+    if (found && !state.active.sets.some((x) => x.exId === el.dataset.ex)) box.innerHTML = warmList(found.ex, num(el.value));
   }
 });
 

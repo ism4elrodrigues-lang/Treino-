@@ -21,7 +21,7 @@ A carga com que você termina um exercício vira a carga sugerida no próximo tr
 - Rodízio automático: o app sugere o próximo dia
 - **Como fazer**: desenho animado de cada exercício (posição inicial → final), músculos trabalhados e 3 dicas de execução. Exercícios novos podem usar qualquer desenho, escolhido no Plano
 - Timer de descanso (3 min por padrão) que começa sozinho, com vibração e bipe
-- **Aquecimento** antes do primeiro exercício do dia: 12 reps a 50%, 10 a 50%, 4 a 70% e 1 a 90% da carga de trabalho
+- **Aquecimento** antes do primeiro exercício do dia: 12 reps a 50%, 10 a 50%, 4 a 70% e 1 a 90% da carga de trabalho. Aparece mesmo sem carga salva (calcula enquanto você digita) e cada série tem ✓ que inicia o descanso (1 min, e 3 min antes da série pesada)
 - **Anilhas por lado**: para exercícios com barra, mostra quais anilhas colocar (barra e anilhas configuráveis em Ajustes)
 - **Anotações por série** (ex.: "dor no ombro"), mostradas de novo no próximo treino do exercício
 - **Semana de deload**: ao iniciar, as cargas aparecem a ~60% e os treinos não mexem na progressão

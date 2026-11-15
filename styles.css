@@ -391,3 +391,11 @@ ul.tips { margin: 4px 0 8px; padding-left: 18px; color: var(--muted); display: g
 .pill.neutral { color: var(--muted); background: var(--card-2); }
 
 details.dados summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-height: 32px; }
+
+/* aquecimento com ✓ e descanso */
+ul.warm li { grid-template-columns: 64px auto 1fr 44px; }
+ul.warm li .plates { grid-column: 2 / 4; }
+ul.warm li.done > b, ul.warm li.done > span:first-child { text-decoration: line-through; opacity: .6; }
+.warm-ok { min-height: 40px; color: var(--muted); }
+.warm-ok.on { background: var(--ok); border-color: var(--ok); color: #06210f; }
+.warm-empty { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--card-2); }

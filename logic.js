@@ -265,11 +265,12 @@ export function platesPerSide(total, bar, plates) {
 }
 
 // Aquecimento do livro antes do primeiro exercício pesado do grupo muscular.
+// Descanso depois de cada série: 1 min entre elas e ~3 min antes da primeira série pesada.
 const WARMUP = [
-  { reps: 12, pct: 50, rest: '1 min' },
-  { reps: 10, pct: 50, rest: '1 min' },
-  { reps: 4, pct: 70, rest: '1 min' },
-  { reps: 1, pct: 90, rest: '2–3 min' },
+  { reps: 12, pct: 50, rest: '1 min', restSec: 60 },
+  { reps: 10, pct: 50, rest: '1 min', restSec: 60 },
+  { reps: 4, pct: 70, rest: '1 min', restSec: 60 },
+  { reps: 1, pct: 90, rest: '3 min', restSec: 180 },
 ];
 
 export function warmupSets(workWeight, exercise, settings) {
