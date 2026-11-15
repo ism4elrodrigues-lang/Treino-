@@ -1,0 +1,54 @@
+# Meu Treino
+
+Web app de celular para registrar treinos e saber **quando subir a carga**, seguindo o método do livro
+*Malhar, Secar, Definir* (Michael Matthews): treino pesado na faixa de **4–6 repetições** com **progressão dupla**.
+
+## Como o app decide a carga
+
+| Resultado da série | O que o app manda fazer |
+|---|---|
+| Bateu 6 reps (topo da faixa) | **Subir** já na próxima série: +5 kg na barra, +2 kg nos halteres |
+| 4–5 reps | **Manter** a carga e buscar 6 |
+| Menos de 4 reps logo após subir | **Voltar** para a carga anterior |
+| Menos de 4 reps sem ter subido | Manter e tentar de novo |
+| 3 treinos seguidos sem subir | Aviso de estagnação (deload ou trocar a variação) |
+
+A carga com que você termina um exercício vira a carga sugerida no próximo treino desse exercício.
+
+## Funcionalidades
+
+- Divisão de 5 dias do livro (Peito, Costas, Ombros, Pernas, Braços), editável na aba **Plano**
+- Rodízio automático: o app sugere o próximo dia
+- Timer de descanso (3 min por padrão) que começa sozinho, com vibração e bipe
+- Histórico com gráfico da carga e do 1RM estimado por exercício
+- Aviso de deload a cada 8 semanas (configurável)
+- Backup: exportar e importar um arquivo `.json`
+- Funciona offline e pode ser instalado na tela inicial (PWA). Os dados ficam só no aparelho.
+
+## Como colocar no celular
+
+O app é só HTML, CSS e JavaScript, sem build. Basta hospedar os arquivos em qualquer endereço HTTPS.
+O jeito mais simples é o **GitHub Pages**:
+
+1. No GitHub, abra o repositório e vá em **Settings → Pages**.
+2. Em *Source*, escolha **Deploy from a branch**, selecione a branch e a pasta `/ (root)` e salve.
+3. Abra no celular o endereço que aparecer (`https://<usuario>.github.io/<repositorio>/`).
+4. Adicione à tela inicial: **Android/Chrome**: menu ⋮ → *Instalar app*. **iPhone/Safari**: Compartilhar → *Adicionar à Tela de Início*.
+
+> Ao publicar uma nova versão, aumente `CACHE` em `sw.js` (por exemplo, `treino-v2`) para o celular baixar os arquivos novos.
+
+## Rodar localmente
+
+```bash
+python3 -m http.server 8000
+```
+
+Abra http://localhost:8000.
+
+## Testes
+
+As regras de progressão ficam em `logic.js` (funções puras) e são testadas com o runner do Node:
+
+```bash
+node --test
+```

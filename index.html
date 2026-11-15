@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111418">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Meu Treino">
+  <title>Meu Treino</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Meu Treino</h1>
+    <span class="muted small">Progressão dupla · 4–6 reps</span>
+  </header>
+
+  <main id="view" aria-live="polite"></main>
+
+  <div id="timer" class="timer" hidden>
+    <button type="button" class="tbtn" data-tact="minus" aria-label="Menos 15 segundos">−15s</button>
+    <div class="tmain">
+      <span id="timer-label" class="small muted">Descanso</span>
+      <span id="timer-text" class="ttext">3:00</span>
+      <div class="tbar"><i id="timer-bar"></i></div>
+    </div>
+    <button type="button" class="tbtn" data-tact="plus" aria-label="Mais 15 segundos">+15s</button>
+    <button type="button" class="tbtn" data-tact="stop" aria-label="Fechar timer">✕</button>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <nav class="tabs" aria-label="Seções">
+    <button type="button" data-tab="treino"><span aria-hidden="true">🏋️</span>Treino</button>
+    <button type="button" data-tab="historico"><span aria-hidden="true">📈</span>Histórico</button>
+    <button type="button" data-tab="plano"><span aria-hidden="true">📝</span>Plano</button>
+    <button type="button" data-tab="config"><span aria-hidden="true">⚙️</span>Ajustes</button>
+  </nav>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
