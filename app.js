@@ -1,5 +1,7 @@
 import * as L from './logic.js';
 import { FIGS, mountHowto } from './figures.js';
+import * as D from './diet.js';
+import { FOODS } from './foods.js';
 
 const KEY = 'treino-mss-v1';
 const TIMER_KEY = 'treino-mss-timer';
@@ -30,7 +32,12 @@ function figKey(ex) {
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return L.migrate(JSON.parse(raw));
+    if (raw) {
+      const st = L.migrate(JSON.parse(raw));
+      const limit = L.isoDate(new Date(Date.now() - 60 * 864e5));
+      for (const k of Object.keys(st.diet.log)) if (k < limit) delete st.diet.log[k]; // guarda só 60 dias
+      return st;
+    }
   } catch (e) {
     console.warn('Falha ao ler dados salvos', e);
   }
@@ -394,7 +401,7 @@ function whyText(phase, level) {
     : 'Seu peso está subindo.';
 }
 
-function viewCorpo() {
+function viewMeta() {
   const s = state.settings;
   const pr = state.profile;
   const phase = L.PHASES[pr.phase] ? pr.phase : 'crescer';
@@ -502,6 +509,321 @@ function viewCorpo() {
 
   return phases + meta + progress + dados + list;
 }
+
+// ---------- dieta: cardápio e registro do dia ----------
+
+const FOOD_MAP = new Map(FOODS.map((f) => [f.id, f]));
+const foodById = (id) => FOOD_MAP.get(id) ?? state.diet.foods.find((f) => f.id === id);
+const allFoods = () => [...state.diet.foods, ...FOODS];
+const g0 = (n) => Math.round(n).toLocaleString('pt-BR');
+const MACRO = { kcal: ['Calorias', 'kcal'], p: ['Proteína', 'g'], c: ['Carboidrato', 'g'], f: ['Gordura', 'g'] };
+
+function dietGoal() {
+  const tr = L.weightTrend(state.body, new Date());
+  const refKg = tr.last ?? state.body.at(-1)?.kg ?? null;
+  return D.goalFromCalories(L.calories(state.profile, refKg));
+}
+
+function todayLog() {
+  const k = L.isoDate(new Date());
+  state.diet.log[k] ??= D.emptyDay();
+  return state.diet.log[k];
+}
+
+function macroBars(totals, goal, mode, keys = ['kcal', 'p', 'c', 'f']) {
+  const cmp = D.compare(totals, goal);
+  return `<div class="mbars">${keys.map((k) => [k, MACRO[k]]).map(([k, [label, unit]]) => {
+    const c = cmp[k];
+    const pct = c.target > 0 ? Math.min(100, (c.value / c.target) * 100) : 0;
+    let hint;
+    if (mode === 'hoje') {
+      const left = c.target - c.value;
+      hint = left > 0 ? `faltam ${g0(left)} ${unit}` : left < 0 ? `passou ${g0(-left)} ${unit}` : 'na meta';
+    } else {
+      hint = c.status === 'ok' ? '✓ ok' : c.diff < 0 ? `faltam ${g0(-c.diff)} ${unit}` : `${g0(c.diff)} ${unit} a mais`;
+    }
+    const cls = mode === 'hoje' ? (c.value > c.target * 1.05 && k === 'kcal' ? 'alto' : 'neutro') : c.status;
+    return `<div class="mbar ${cls}">
+      <div class="mrow"><span>${label}</span><span><b>${g0(c.value)}</b> / ${g0(c.target)} ${unit}</span></div>
+      <div class="track"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <span class="mhint">${hint}</span>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function dietSubnav() {
+  const tabs = [['hoje', 'Hoje'], ['cardapio', 'Cardápio'], ['meta', 'Meta e peso']];
+  return `<div class="subnav" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-act="diet-tab" data-t="${k}" aria-selected="${ui.dietTab === k}">${l}</button>`).join('')}</div>`;
+}
+
+function viewCorpo() {
+  const hasMenu = state.diet.menu.meals.some((m) => m.items.length);
+  ui.dietTab ??= !dietGoal() ? 'meta' : hasMenu ? 'hoje' : 'cardapio';
+  const body = ui.dietTab === 'hoje' ? viewHoje() : ui.dietTab === 'cardapio' ? viewCardapio() : viewMeta();
+  return dietSubnav() + body;
+}
+
+function noGoalBox() {
+  return `<section class="card"><p>Primeiro defina sua meta: escolha a fase e preencha seus dados.</p>
+    <button class="btn primary" data-act="diet-tab" data-t="meta">Ir para Meta e peso</button></section>`;
+}
+
+function mismatchBanner(goal) {
+  const menu = state.diet.menu;
+  if (!menu.meals.some((m) => m.items.length)) return '';
+  const tot = D.menuTotals(menu, foodById);
+  const cmp = D.compare(tot, goal);
+  if (cmp.kcal.status === 'ok' && cmp.p.status !== 'baixo') return '';
+  return `<div class="banner agora"><strong>O cardápio não bate com a meta</strong>
+    <p class="small">Meta: ${g0(goal.kcal)} kcal e ${g0(goal.p)} g de proteína. Cardápio: ${g0(tot.kcal)} kcal e ${g0(tot.p)} g de proteína.</p>
+    ${ui.dietTab !== 'cardapio' ? '<button class="btn small" data-act="diet-tab" data-t="cardapio">Ver como ajustar</button>' : ''}</div>`;
+}
+
+// --- Cardápio ---
+
+function foodResults(mealId, q) {
+  const hits = D.searchFoods(allFoods(), q);
+  if (!q.trim()) return '<p class="small muted">Digite o nome do alimento, por exemplo "frango", "arroz" ou "banana".</p>';
+  return `${hits.length ? `<ul class="fres">${hits.map((f) => `<li><button type="button" data-act="food-add" data-meal="${mealId}" data-food="${esc(f.id)}">
+      <span>${esc(f.name)}${f.custom ? ' <em class="small muted">(seu)</em>' : ''}</span>
+      <span class="small muted">${g0(f.kcal)} kcal · ${kg(Math.round(f.p * 10) / 10)} g prot · por 100 g</span>
+    </button></li>`).join('')}</ul>` : '<p class="small muted">Nada encontrado.</p>'}
+    <button type="button" class="btn ghost small" data-act="food-new" data-meal="${mealId}">Não achou? Cadastrar alimento pelo rótulo</button>`;
+}
+
+function newFoodForm(mealId) {
+  return `<div class="newfood">
+    <p class="small"><b>Cadastrar alimento</b> · copie os valores do rótulo</p>
+    <label class="field">Nome<input id="nf-name" placeholder="ex.: Whey protein marca X"></label>
+    <div class="grid4">
+      <label class="field">Porção do rótulo (g)<input id="nf-portion" inputmode="decimal" value="100"></label>
+      <label class="field">Calorias (kcal)<input id="nf-kcal" inputmode="decimal"></label>
+      <label class="field">Proteína (g)<input id="nf-p" inputmode="decimal"></label>
+      <label class="field">Carboidrato (g)<input id="nf-c" inputmode="decimal"></label>
+      <label class="field">Gordura total (g)<input id="nf-f" inputmode="decimal"></label>
+    </div>
+    <div class="row"><button class="btn primary" data-act="food-save" data-meal="${mealId}">Salvar e adicionar</button>
+      <button class="btn ghost" data-act="food-new-cancel">Cancelar</button></div>
+  </div>`;
+}
+
+function suggestionBox(goal) {
+  const menu = state.diet.menu;
+  if (!menu.meals.some((m) => m.items.length)) return '';
+  const sug = D.suggestions(menu, foodById, goal);
+  if (!sug.length) return `<div class="advice subir">✓ O cardápio bate com a sua meta.</div>`;
+  const why = { proteina: 'para bater a proteína', calorias: 'para acertar as calorias', gordura: 'para reduzir a gordura' };
+  return `<section class="card sug"><h3>Como ajustar</h3>
+    <ul>${sug.map((x, i) => x.hint
+      ? `<li><span>${{
+          proteina: 'Adicione uma fonte de proteína, como peito de frango, ovos, atum ou iogurte. Proteína em todas as refeições ajuda.',
+          carbo: 'Adicione uma fonte de carboidrato, como arroz, batata, pão ou fruta.',
+          pouco: `Mesmo com os ajustes, ainda faltam uns <b>${g0(x.kcal)} kcal</b>. Acrescente mais alimentos ou mais uma refeição (um lanche, por exemplo).`,
+        }[x.hint]}</span></li>`
+      : `<li><span><b>${esc(x.meal)}</b> → ${esc(x.food)}: <b>${x.deltaG > 0 ? '+' : '−'}${Math.abs(x.deltaG)} g</b> <span class="small muted">${why[x.why]} (${x.kcal > 0 ? '+' : ''}${x.kcal} kcal)</span></span>
+          <button class="btn small primary" data-act="sug-apply" data-i="${i}">Aplicar</button></li>`).join('')}</ul>
+  </section>`;
+}
+
+function viewCardapio() {
+  const goal = dietGoal();
+  const menu = state.diet.menu;
+  const tot = D.menuTotals(menu, foodById);
+  return `${goal ? `<section class="card">
+        <h3>Total do cardápio × meta</h3>
+        ${macroBars(tot, goal, 'cardapio')}
+      </section>
+      ${suggestionBox(goal)}` : noGoalBox()}
+    ${menu.meals.map((m) => {
+      const mt = D.mealTotals(m, foodById);
+      const hasProt = m.items.some((it) => (foodById(it.foodId)?.p ?? 0) >= 10);
+      const isTreino = /treino/i.test(m.name);
+      return `<section class="card meal">
+        <div class="row">
+          <input class="grow meal-name" aria-label="Nome da refeição" data-meal-name="${m.id}" value="${esc(m.name)}">
+          <button class="btn icon small danger" data-act="meal-del" data-meal="${m.id}" aria-label="Remover refeição">🗑</button>
+        </div>
+        <p class="small muted">${g0(mt.kcal)} kcal · ${g0(mt.p)} g proteína · ${g0(mt.c)} g carbo · ${g0(mt.f)} g gordura</p>
+        ${m.items.length ? `<ul class="items">${m.items.map((it, idx) => {
+          const f = foodById(it.foodId);
+          if (!f) return `<li><span class="muted">Alimento removido</span><span></span><button class="btn icon small danger" data-act="item-del" data-meal="${m.id}" data-idx="${idx}" aria-label="Remover">✕</button></li>`;
+          const x = D.foodMacros(f, it.g);
+          return `<li>
+            <span class="iname">${esc(f.name)}<span class="small muted">${g0(x.kcal)} kcal · ${kg(Math.round(x.p * 10) / 10)} g prot</span></span>
+            <label class="gfield"><input inputmode="numeric" aria-label="Gramas de ${esc(f.name)}" data-item-g="${idx}" data-meal="${m.id}" value="${it.g}"><span>g</span></label>
+            <button class="btn icon small danger" data-act="item-del" data-meal="${m.id}" data-idx="${idx}" aria-label="Remover ${esc(f.name)}">✕</button>
+          </li>`;
+        }).join('')}</ul>` : '<p class="small muted">Nenhum alimento ainda.</p>'}
+        ${m.items.length && !hasProt ? '<p class="tip small">Dica do livro: coloque proteína em todas as refeições.</p>' : ''}
+        ${isTreino ? '<p class="tip small">Perto do treino, o livro sugere uns 30–40 g de proteína.</p>' : ''}
+        ${ui.addTo === m.id
+          ? (ui.newFood === m.id ? newFoodForm(m.id) : `<div class="foodsearch">
+              <input id="food-q" type="search" data-food-q="${m.id}" placeholder="Buscar alimento" value="${esc(ui.q ?? '')}" autocomplete="off">
+              <div id="food-res">${foodResults(m.id, ui.q ?? '')}</div>
+              <button class="btn ghost small" data-act="food-close">Fechar</button>
+            </div>`)
+          : `<button class="btn small" data-act="food-open" data-meal="${m.id}">+ Alimento</button>`}
+      </section>`;
+    }).join('')}
+    <button class="btn" data-act="meal-add">+ Refeição</button>
+    <p class="small muted" style="margin-top:14px">Valores por 100 g da Tabela TACO (NEPA/Unicamp, 4ª ed.). São médias: marcas e preparos variam um pouco.</p>`;
+}
+
+// --- Hoje ---
+
+function viewHoje() {
+  const goal = dietGoal();
+  if (!goal) return noGoalBox();
+  const menu = state.diet.menu;
+  if (!menu.meals.some((m) => m.items.length)) {
+    return `<section class="card"><p>Monte seu cardápio primeiro. Depois é só marcar o que comeu aqui.</p>
+      <button class="btn primary" data-act="diet-tab" data-t="cardapio">Montar cardápio</button></section>`;
+  }
+  const day = todayLog();
+  const tot = D.dayTotals(menu, day, foodById);
+  const v = D.dayVerdict(tot, goal);
+  const anyMarked = Object.values(day.done).some(Boolean) || Object.keys(day.swaps).length || day.extras.length;
+  return `${mismatchBanner(goal)}
+    <section class="card">
+      <h3>Hoje · ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</h3>
+      ${macroBars(tot, goal, 'hoje', ['kcal', 'p'])}
+      ${anyMarked ? `<p class="pill ${v.level === 'ok' ? 'ok' : v.level === 'alto' ? 'down' : 'neutral'}">${v.level === 'ok' ? '✓ ' : ''}${v.lines.join(' · ')}</p>` : '<p class="small muted">Toque em "Comi" a cada refeição.</p>'}
+    </section>
+    ${menu.meals.filter((m) => m.items.length).map((m) => {
+      const mt = D.mealTotals(m, foodById);
+      const swap = day.swaps[m.id];
+      const done = !!day.done[m.id];
+      return `<section class="card meal-day ${done || swap ? 'is-done' : ''}">
+        <div class="row">
+          <div class="grow"><h3>${esc(m.name)}</h3>
+            <p class="small muted">${swap ? `Trocado: ~${g0(swap.kcal)} kcal${swap.p ? ` · ${g0(swap.p)} g prot` : ''}` : `${g0(mt.kcal)} kcal · ${g0(mt.p)} g prot`}</p></div>
+          ${swap ? `<button class="btn small" data-act="swap-undo" data-meal="${m.id}">Desfazer troca</button>`
+            : `<button class="btn ${done ? 'ok-on' : 'primary'}" data-act="day-done" data-meal="${m.id}" aria-pressed="${done}">${done ? '✓ Comi' : 'Comi'}</button>`}
+        </div>
+        ${!swap ? `<p class="small muted mitems">${m.items.map((it) => { const f = foodById(it.foodId); return f ? `${esc(f.name)} ${it.g} g` : ''; }).filter(Boolean).join(' · ')}</p>` : ''}
+        ${ui.swapOpen === m.id ? `<div class="quick">
+            <p class="small">Comeu outra coisa? Coloque uma estimativa.</p>
+            <div class="grid2"><label class="field">Calorias (kcal)<input id="sw-kcal" inputmode="numeric" placeholder="ex.: 800"></label>
+            <label class="field">Proteína (g, se souber)<input id="sw-p" inputmode="numeric" placeholder="ex.: 30"></label></div>
+            <div class="row"><button class="btn primary small" data-act="swap-save" data-meal="${m.id}">Salvar</button><button class="btn ghost small" data-act="swap-close">Cancelar</button></div>
+          </div>` : !swap && !done ? `<button class="btn ghost small" data-act="swap-open" data-meal="${m.id}">Comi diferente</button>` : ''}
+      </section>`;
+    }).join('')}
+    <section class="card">
+      <h3>Fora do cardápio</h3>
+      ${day.extras.length ? `<ul class="items">${day.extras.map((x, i) => `<li><span class="iname">${esc(x.label || 'Extra')}<span class="small muted">${g0(x.kcal)} kcal${x.p ? ` · ${g0(x.p)} g prot` : ''}</span></span><span></span>
+        <button class="btn icon small danger" data-act="extra-del" data-i="${i}" aria-label="Remover">✕</button></li>`).join('')}</ul>` : ''}
+      ${ui.extraOpen ? `<div class="quick">
+          <label class="field">O que foi<input id="ex-label" placeholder="ex.: 1 pedaço de bolo"></label>
+          <div class="grid2"><label class="field">Calorias (kcal)<input id="ex-kcal" inputmode="numeric"></label>
+          <label class="field">Proteína (g, se souber)<input id="ex-p" inputmode="numeric"></label></div>
+          <div class="row"><button class="btn primary small" data-act="extra-save">Adicionar</button><button class="btn ghost small" data-act="extra-close">Cancelar</button></div>
+        </div>` : '<button class="btn small" data-act="extra-open">+ Comi algo a mais</button>'}
+    </section>
+    ${state.profile.phase === 'secar' ? '<p class="tip small">Na fase de secar, o livro sugere uma refeição livre por semana para aguentar a dieta.</p>' : ''}`;
+}
+
+const dietActions = {
+  'diet-tab'(el) { ui.dietTab = el.dataset.t; ui.addTo = null; render(); window.scrollTo(0, 0); },
+  'food-open'(el) { ui.addTo = el.dataset.meal; ui.newFood = null; ui.q = ''; render(); $('#food-q')?.focus(); },
+  'food-close'() { ui.addTo = null; render(); },
+  'food-new'(el) { ui.newFood = el.dataset.meal; render(); $('#nf-name')?.focus(); },
+  'food-new-cancel'() { ui.newFood = null; render(); },
+  'food-add'(el) {
+    const m = state.diet.menu.meals.find((x) => x.id === el.dataset.meal);
+    if (!m) return;
+    m.items.push({ foodId: el.dataset.food, g: 100 });
+    ui.addTo = null;
+    save();
+    toast('Adicionado com 100 g. Ajuste a quantidade se precisar.');
+    render();
+  },
+  'food-save'(el) {
+    const name = $('#nf-name').value.trim();
+    const vals = { portion: num($('#nf-portion').value), kcal: num($('#nf-kcal').value), p: num($('#nf-p').value) ?? 0, c: num($('#nf-c').value) ?? 0, f: num($('#nf-f').value) ?? 0 };
+    if (!name) return toast('Dê um nome ao alimento.', true);
+    if (!(vals.portion > 0) || vals.kcal == null) return toast('Preencha a porção e as calorias do rótulo.', true);
+    const food = { id: L.uid('food'), name, custom: true, ...D.per100FromLabel(vals) };
+    state.diet.foods.push(food);
+    const m = state.diet.menu.meals.find((x) => x.id === el.dataset.meal);
+    m?.items.push({ foodId: food.id, g: Math.round(vals.portion) });
+    ui.addTo = null;
+    ui.newFood = null;
+    save();
+    toast(`${name} cadastrado e adicionado (${Math.round(vals.portion)} g).`);
+    render();
+  },
+  'item-del'(el) {
+    const m = state.diet.menu.meals.find((x) => x.id === el.dataset.meal);
+    m?.items.splice(Number(el.dataset.idx), 1);
+    save();
+    render();
+  },
+  'meal-add'() {
+    state.diet.menu.meals.push({ id: L.uid('m'), name: 'Nova refeição', items: [] });
+    save();
+    render();
+  },
+  'meal-del'(el) {
+    const m = state.diet.menu.meals.find((x) => x.id === el.dataset.meal);
+    if (!m || !confirm(`Remover a refeição "${m.name}"?`)) return;
+    state.diet.menu.meals = state.diet.menu.meals.filter((x) => x !== m);
+    save();
+    render();
+  },
+  'sug-apply'(el) {
+    const goal = dietGoal();
+    const s = D.suggestions(state.diet.menu, foodById, goal)[Number(el.dataset.i)];
+    const m = s && state.diet.menu.meals.find((x) => x.id === s.mealId);
+    const it = m?.items[s.idx];
+    if (!it) return;
+    it.g = Math.max(0, it.g + s.deltaG);
+    if (it.g === 0) m.items.splice(s.idx, 1);
+    save();
+    toast('Ajuste aplicado.');
+    render();
+  },
+  'day-done'(el) {
+    const day = todayLog();
+    day.done[el.dataset.meal] = !day.done[el.dataset.meal];
+    navigator.vibrate?.(20);
+    save();
+    render();
+  },
+  'swap-open'(el) { ui.swapOpen = el.dataset.meal; render(); $('#sw-kcal')?.focus(); },
+  'swap-close'() { ui.swapOpen = null; render(); },
+  'swap-save'(el) {
+    const kcal = num($('#sw-kcal').value);
+    if (!(kcal > 0)) return toast('Coloque uma estimativa de calorias.', true);
+    const day = todayLog();
+    day.swaps[el.dataset.meal] = { kcal, p: num($('#sw-p').value) ?? 0 };
+    delete day.done[el.dataset.meal];
+    ui.swapOpen = null;
+    save();
+    render();
+  },
+  'swap-undo'(el) {
+    delete todayLog().swaps[el.dataset.meal];
+    save();
+    render();
+  },
+  'extra-open'() { ui.extraOpen = true; render(); $('#ex-label')?.focus(); },
+  'extra-close'() { ui.extraOpen = false; render(); },
+  'extra-save'() {
+    const kcal = num($('#ex-kcal').value);
+    if (!(kcal > 0)) return toast('Coloque uma estimativa de calorias.', true);
+    todayLog().extras.push({ label: $('#ex-label').value.trim(), kcal, p: num($('#ex-p').value) ?? 0 });
+    ui.extraOpen = false;
+    save();
+    render();
+  },
+  'extra-del'(el) {
+    todayLog().extras.splice(Number(el.dataset.i), 1);
+    save();
+    render();
+  },
+};
+
 
 function viewPlano() {
   const figOpts = (sel) => `<option value="" ${sel ? '' : 'selected'}>Sem desenho</option>`
@@ -958,6 +1280,8 @@ function onPlanField(el) {
   render();
 }
 
+Object.assign(actions, dietActions);
+
 // ---------- timer de descanso ----------
 
 const timer = { end: null, total: 0, alerted: false, label: 'Descanso' };
@@ -1051,6 +1375,12 @@ document.addEventListener('click', (ev) => {
 
 document.addEventListener('input', (ev) => {
   const el = ev.target;
+  if (el.dataset.foodQ) {
+    ui.q = el.value;
+    const box = document.getElementById('food-res');
+    if (box) box.innerHTML = foodResults(el.dataset.foodQ, el.value);
+    return;
+  }
   if (el.dataset.draft) {
     const d = (ui.drafts[el.dataset.ex] ??= {});
     d[el.dataset.draft] = el.value;
@@ -1086,6 +1416,20 @@ document.addEventListener('change', async (ev) => {
   if (el.hasAttribute('data-plates')) {
     const list = el.value.split(/[;\s]+/).map(num).filter((n) => n > 0);
     if (list.length) state.settings.plates = [...new Set(list)].sort((a, b) => b - a);
+    save();
+    return render();
+  }
+  if (el.dataset.itemG != null) {
+    const m = state.diet.menu.meals.find((x) => x.id === el.dataset.meal);
+    const it = m?.items[Number(el.dataset.itemG)];
+    const g = num(el.value);
+    if (it && g != null && g >= 0) it.g = Math.round(g);
+    save();
+    return render();
+  }
+  if (el.dataset.mealName) {
+    const m = state.diet.menu.meals.find((x) => x.id === el.dataset.mealName);
+    if (m) m.name = el.value.trim() || m.name;
     save();
     return render();
   }

@@ -399,3 +399,46 @@ ul.warm li.done > b, ul.warm li.done > span:first-child { text-decoration: line-
 .warm-ok { min-height: 40px; color: var(--muted); }
 .warm-ok.on { background: var(--ok); border-color: var(--ok); color: #06210f; }
 .warm-empty { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--card-2); }
+
+/* ---------- dieta ---------- */
+
+.subnav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; margin: 4px 0 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.subnav button { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600; font-size: .9rem; min-height: 40px; border-radius: 9px; cursor: pointer; }
+.subnav button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.mbars { display: grid; gap: 12px; margin-top: 10px; }
+.mrow { display: flex; justify-content: space-between; gap: 8px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.track { height: 8px; border-radius: 8px; background: var(--card-2); overflow: hidden; margin: 4px 0 2px; }
+.track i { display: block; height: 100%; border-radius: 8px; background: var(--accent); }
+.mhint { font-size: .78rem; color: var(--muted); }
+.mbar.ok .track i { background: var(--ok); }
+.mbar.ok .mhint { color: var(--ok); }
+.mbar.baixo .track i { background: var(--info); }
+.mbar.baixo .mhint { color: var(--info); }
+.mbar.alto .track i { background: var(--warn); }
+.mbar.alto .mhint { color: var(--warn); }
+
+.sug ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.sug li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px; border-radius: 10px; background: var(--card-2); }
+.sug li > span { min-width: 0; }
+
+.meal-name { font-weight: 700; font-size: 1.05rem; }
+ul.items { list-style: none; margin: 8px 0; padding: 0; }
+ul.items li { display: grid; grid-template-columns: 1fr 96px 40px; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.iname { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.gfield { display: flex; align-items: center; gap: 4px; }
+.gfield input { text-align: right; min-height: 40px; padding: 6px 8px; }
+.gfield span { color: var(--muted); font-size: .85rem; }
+.tip { color: var(--info); margin: 6px 0; }
+
+.foodsearch, .newfood, .quick { display: grid; gap: 8px; margin-top: 8px; padding: 10px; border-radius: 12px; background: var(--card-2); }
+.foodsearch input[type="search"] { background: var(--card); }
+ul.fres { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 320px; overflow-y: auto; }
+ul.fres button { appearance: none; width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); }
+.grid4, .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.newfood input, .quick input { background: var(--card); }
+
+.meal-day.is-done { opacity: .75; }
+.meal-day h3 { font-size: 1.05rem; }
+.mitems { margin: 4px 0 6px; }
+.btn.ok-on { background: var(--ok); border-color: var(--ok); color: #06210f; }

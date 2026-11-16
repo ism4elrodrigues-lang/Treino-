@@ -25,7 +25,9 @@ A carga com que você termina um exercício vira a carga sugerida no próximo tr
 - **Anilhas por lado**: para exercícios com barra, mostra quais anilhas colocar (barra e anilhas configuráveis em Ajustes)
 - **Anotações por série** (ex.: "dor no ombro"), mostradas de novo no próximo treino do exercício
 - **Semana de deload**: ao iniciar, as cargas aparecem a ~60% e os treinos não mexem na progressão
-- **Corpo**: escolha a fase (**Crescer**, **Secar** ou **Manter**) e o app mostra a meta de calorias e macros do dia. Com o peso registrado, ele diz se você deve comer mais, menos ou continuar igual, e aplica o ajuste na meta com um toque. Também avisa quando trocar de fase pelo % de gordura (~17% para secar, ~10% para voltar a crescer)
+- **Dieta → Meta e peso**: escolha a fase (**Crescer**, **Secar** ou **Manter**) e o app mostra a meta de calorias e macros do dia. Com o peso registrado, ele diz se você deve comer mais, menos ou continuar igual, e aplica o ajuste na meta com um toque. Também avisa quando trocar de fase pelo % de gordura (~17% para secar, ~10% para voltar a crescer)
+- **Dieta → Cardápio**: monte as refeições uma vez com alimentos da Tabela TACO (ou cadastrados pelo rótulo). Barras mostram o total contra a meta e o app sugere ajustes realistas (proteína primeiro, depois calorias pelo carboidrato) que você aplica com um toque
+- **Dieta → Hoje**: marque "Comi" em cada refeição, registre trocas ("Comi diferente") e extras, e veja se o dia ficou dentro da meta
 - Histórico com gráfico da carga e do 1RM estimado por exercício
 - Aviso de deload a cada 8 semanas (configurável)
 - Backup: exportar e importar um arquivo `.json`
@@ -42,6 +44,10 @@ O jeito mais simples é o **GitHub Pages**:
 4. Adicione à tela inicial: **Android/Chrome**: menu ⋮ → *Instalar app*. **iPhone/Safari**: Compartilhar → *Adicionar à Tela de Início*.
 
 > Ao publicar uma nova versão, aumente `CACHE` em `sw.js` (por exemplo, `treino-v2`) para o celular baixar os arquivos novos.
+
+## Dados de alimentos
+
+`foods.js` traz 92 alimentos comuns da **Tabela Brasileira de Composição de Alimentos (TACO), 4ª ed. revisada e ampliada (NEPA/UNICAMP, 2011)**, por 100 g, a partir da versão em CSV de [isaquetdiniz/taco-api](https://github.com/isaquetdiniz/taco-api) (MIT). Valores "Tr" e "NA" entram como 0. Leite integral e desnatado não têm valores nesse arquivo e ficaram de fora (cadastre pelo rótulo).
 
 ## Rodar localmente
 

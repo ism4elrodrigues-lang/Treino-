@@ -1,6 +1,8 @@
 // Regras de treino baseadas em "Malhar, Secar, Definir" (Michael Matthews).
 // Funções puras, sem DOM, para poderem ser testadas com `node --test`.
 
+import { defaultMenu } from './diet.js';
+
 export const EQUIP = {
   barra: 'Barra',
   halter: 'Halteres',
@@ -111,6 +113,7 @@ export function initialState(now = new Date()) {
     deload: null, // { start } durante a semana de deload
     body: [], // { date, kg }
     profile: { sex: 'M', age: null, height: null, bf: null, hours: 5, phase: 'crescer', adjust: 0, adjustAt: null },
+    diet: { menu: defaultMenu(), foods: [], log: {} }, // cardápio, alimentos cadastrados e registro por dia
   };
 }
 
@@ -135,6 +138,11 @@ export function migrate(obj) {
     deload: obj.deload?.start ? obj.deload : null,
     body: Array.isArray(obj.body) ? obj.body : [],
     profile: { ...base.profile, ...(obj.profile || {}) },
+    diet: {
+      menu: Array.isArray(obj.diet?.menu?.meals) ? obj.diet.menu : base.diet.menu,
+      foods: Array.isArray(obj.diet?.foods) ? obj.diet.foods : [],
+      log: obj.diet?.log && typeof obj.diet.log === 'object' ? obj.diet.log : {},
+    },
     version: 1,
   };
 }
