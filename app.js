@@ -224,25 +224,35 @@ function exCard(ex, day) {
     ${prev ? `<p class="prev muted small">Última vez (${fmtDate(prev.date)}): ${prev.sets.map((x) => `${kg(x.weight)}×${x.reps}`).join(' · ')}</p>` : ''}
     ${prevNotes.length ? `<p class="prev small note-prev">📝 ${prevNotes.map((x) => esc(x.note)).join(' · ')}</p>` : ''}
     ${!deload && (start?.stall ?? 0) >= L.STALL_LIMIT ? `<p class="warn">⚠ ${start.stall} treinos sem subir carga. Considere um deload ou trocar a variação do exercício.</p>` : ''}
-    ${sets.length ? `<ul class="sets">${sets.map((x, i) => {
+    ${sets.length || showRow ? `<ol class="tl">${sets.map((x, i) => {
       const editing = ui.noteEdit === idxs[i];
+      const act = work.results[i].action;
       return `<li>
-        <span class="muted">Série ${i + 1}</span>
-        <b>${kg(x.weight)} kg × ${x.reps}</b>
-        <span class="tag ${work.results[i].action}">${TAG[work.results[i].action]}</span>
-        <button type="button" class="btn ghost icon small" data-act="note" data-i="${idxs[i]}" aria-label="Anotação da série ${i + 1}">✎</button>
-        ${editing
-          ? `<input class="note-in" id="note-${idxs[i]}" data-note="${idxs[i]}" value="${esc(x.note ?? '')}" placeholder="Ex.: dor no ombro, pegada mais fechada" maxlength="140" enterkeyhint="done">`
-          : x.note ? `<p class="note">📝 ${esc(x.note)}</p>` : ''}
+        <span class="dot ${act}" aria-hidden="true">${i + 1}</span>
+        <div class="tl-body">
+          <div class="tl-line">
+            <b class="tl-val">${kg(x.weight)} kg × ${x.reps}</b>
+            <span class="tag ${act}">${TAG[act]}</span>
+            <button type="button" class="btn ghost icon small" data-act="note" data-i="${idxs[i]}" aria-label="Anotação da série ${i + 1}">✎</button>
+          </div>
+          ${editing
+            ? `<input class="note-in" id="note-${idxs[i]}" data-note="${idxs[i]}" value="${esc(x.note ?? '')}" placeholder="Ex.: dor no ombro, pegada mais fechada" maxlength="140" enterkeyhint="done">`
+            : x.note ? `<p class="note">📝 ${esc(x.note)}</p>` : ''}
+          ${i === sets.length - 1 ? advice : ''}
+        </div>
       </li>`;
-    }).join('')}</ul>` : ''}
-    ${advice}
-    ${showRow ? `<div class="logrow">
-        <span class="lbl">${done ? 'Extra' : `Série ${sets.length + 1}`}</span>
-        <label class="field">kg<input inputmode="decimal" enterkeyhint="next" data-draft="w" data-ex="${esc(ex.id)}" value="${esc(wValue === '' ? '' : String(wValue).replace('.', ','))}" placeholder="kg"></label>
-        <label class="field">reps<input inputmode="numeric" enterkeyhint="done" data-draft="r" data-ex="${esc(ex.id)}" value="${esc(draft.r ?? '')}" placeholder="${ex.repMin}–${ex.repMax}"></label>
-        <button class="btn primary" data-act="log" data-ex="${esc(ex.id)}" aria-label="Registrar série">✓</button>
-      </div>` : ''}
+    }).join('')}
+    ${showRow ? `<li class="tl-next">
+        <span class="dot next" aria-hidden="true">${sets.length + 1}</span>
+        <div class="tl-body">
+          <span class="tl-now">${done ? 'Série extra' : `Série ${sets.length + 1} de ${ex.sets}`} · agora</span>
+          <div class="logrow">
+            <label class="field">kg<input inputmode="decimal" enterkeyhint="next" data-draft="w" data-ex="${esc(ex.id)}" value="${esc(wValue === '' ? '' : String(wValue).replace('.', ','))}" placeholder="kg"></label>
+            <label class="field">reps<input inputmode="numeric" enterkeyhint="done" data-draft="r" data-ex="${esc(ex.id)}" value="${esc(draft.r ?? '')}" placeholder="${ex.repMin}–${ex.repMax}"></label>
+            <button class="btn primary" data-act="log" data-ex="${esc(ex.id)}" aria-label="Registrar série ${sets.length + 1}">✓</button>
+          </div>
+        </div>
+      </li>` : ''}</ol>` : ''}
     <div class="row end" style="margin-top:8px">
       ${done && !ui.extra[ex.id] ? `<button class="btn ghost small" data-act="extra" data-ex="${esc(ex.id)}">+ série extra</button>` : ''}
       ${sets.length ? `<button class="btn ghost small" data-act="undo" data-ex="${esc(ex.id)}">Desfazer última</button>` : ''}

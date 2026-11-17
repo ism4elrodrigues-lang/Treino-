@@ -1,6 +1,6 @@
 // Cache do app para funcionar offline na academia.
 // Aumente a versão sempre que alterar algum arquivo do app.
-const CACHE = 'treino-v6';
+const CACHE = 'treino-v7';
 const FILES = [
   './',
   './index.html',

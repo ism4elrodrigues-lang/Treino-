@@ -442,3 +442,28 @@ ul.fres button { appearance: none; width: 100%; text-align: left; font: inherit;
 .meal-day h3 { font-size: 1.05rem; }
 .mitems { margin: 4px 0 6px; }
 .btn.ok-on { background: var(--ok); border-color: var(--ok); color: #06210f; }
+
+/* ---------- séries em linha do tempo ---------- */
+
+ol.tl { list-style: none; margin: 10px 0 4px; padding: 0; display: grid; }
+ol.tl > li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 16px; }
+ol.tl > li:last-child { padding-bottom: 4px; }
+ol.tl > li:not(:last-child)::before {
+  content: ""; position: absolute; left: 16px; top: 36px; bottom: 2px; width: 2px; border-radius: 2px; background: var(--line);
+}
+.dot {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 900; font-size: .95rem; color: var(--bg); font-variant-numeric: tabular-nums;
+}
+.dot.subir { background: var(--ok); }
+.dot.manter { background: var(--info); }
+.dot.voltar, .dot.abaixo { background: var(--bad); }
+.dot.deload { background: var(--muted); }
+.dot.next { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
+.tl-body { display: grid; gap: 6px; min-width: 0; padding-top: 3px; }
+.tl-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tl-val { font-size: 1.15rem; font-variant-numeric: tabular-nums; margin-right: auto; }
+.tl-body .advice { margin: 2px 0 0; }
+.tl-now { font-weight: 800; color: var(--accent); }
+.tl-next .logrow { grid-template-columns: 1fr 1fr 52px; margin-top: 0; }
+.tl-body .note-in, .tl-body .note { margin: 0; }
