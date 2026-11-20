@@ -467,3 +467,65 @@ ol.tl > li:not(:last-child)::before {
 .tl-now { font-weight: 800; color: var(--accent); }
 .tl-next .logrow { grid-template-columns: 1fr 1fr 52px; margin-top: 0; }
 .tl-body .note-in, .tl-body .note { margin: 0; }
+
+/* ---------- treino: progresso e exercícios recolhidos ---------- */
+
+.sprog { display: grid; gap: 4px; margin: 4px 0 10px; }
+.sprog-lbl { display: flex; justify-content: space-between; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.sprog .track i { background: var(--ok); transition: width .35s ease; }
+.ex-head-r { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+
+.done-line {
+  appearance: none; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--text);
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; margin: 12px 0; scroll-margin-top: 12px;
+}
+.done-line .check { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; grid-row: span 2;
+  background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); font-weight: 900; }
+.done-line .name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.done-line .dots { display: flex; gap: 4px; align-items: center; }
+.done-line .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; background: var(--muted); }
+.done-line .dots i.subir { background: var(--ok); }
+.done-line .dots i.manter { background: var(--info); }
+.done-line .dots i.voltar, .done-line .dots i.abaixo { background: var(--bad); }
+.done-line .sum { grid-column: 2; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.done-line .sum b { color: var(--text); }
+.done-line .chev { grid-column: 3; grid-row: 2; justify-self: end; color: var(--muted); }
+.card[id^="ex-"] { scroll-margin-top: 12px; }
+.flash { animation: flash 1.2s ease; }
+@keyframes flash { 0% { box-shadow: 0 0 0 3px var(--ok); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.complete { text-align: center; padding: 14px; border-radius: var(--radius); font-weight: 700;
+  background: color-mix(in srgb, var(--ok) 14%, var(--card)); border: 1px solid color-mix(in srgb, var(--ok) 40%, var(--line)); }
+@media (prefers-reduced-motion: reduce) { .flash { animation: none; } .sprog .track i { transition: none; } }
+
+/* ---------- plano recolhível ---------- */
+
+.plan-day { padding: 0; overflow: hidden; }
+.plan-day-head {
+  appearance: none; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--text);
+  background: none; border: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 14px;
+}
+.pd-num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 900;
+  background: var(--card-2); color: var(--muted); }
+.plan-day.is-open .pd-num { background: var(--accent); color: var(--accent-ink); }
+.pd-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pd-main b { font-size: 1.1rem; }
+.pd-main .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-day .chev { color: var(--muted); }
+.plan-day.is-open > :not(.plan-day-head) { margin-left: 14px; margin-right: 14px; }
+.plan-day.is-open > :last-child { margin-bottom: 14px; }
+.pd-tools { padding-top: 2px; }
+.pex-list { display: grid; gap: 8px; margin: 12px 0; }
+.pex { border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); }
+.pex.is-open { border-color: var(--accent); }
+.pex-line {
+  appearance: none; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--text);
+  background: none; border: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 10px 12px; min-height: 52px;
+}
+.pex-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pex-line .chev { color: var(--muted); }
+.pex .ex-edit { border-top: 1px solid var(--line); padding: 10px 12px 12px; }
+.pex .ex-edit input, .pex .ex-edit select { background: var(--card); }

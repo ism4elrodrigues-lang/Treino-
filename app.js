@@ -21,7 +21,8 @@ const TAG = { subir: '▲ subir', manter: '= manter', voltar: '▼ voltar', abai
 // ---------- estado ----------
 
 let state = load();
-const ui = { tab: 'treino', drafts: {}, extra: {}, histEx: null, howto: {}, warm: {}, noteEdit: null };
+const ui = { tab: 'treino', drafts: {}, extra: {}, histEx: null, howto: {}, warm: {}, noteEdit: null, open: {}, flash: null, planOpen: {}, planEx: null };
+const smoothScroll = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
 // Desenho do exercício: o escolhido no plano, ou o padrão pelo id do exercício do livro.
 function figKey(ex) {
@@ -116,8 +117,42 @@ function viewActive() {
       <div><p class="muted small">Treino em andamento · ${fmtDate(a.date)}${a.deload ? ' · <b>deload</b>' : ''}</p><h2>${esc(d.name)}</h2></div>
       <button class="btn ghost small danger" data-act="cancel">Cancelar</button>
     </div>
-    ${d.exercises.map((e) => exCard(e, d)).join('')}
+    ${sessionProgress(d)}
+    ${d.exercises.map((e) => (exDone(e) && !ui.open[e.id] ? exCollapsed(e) : exCard(e, d))).join('')}
+    ${d.exercises.length && d.exercises.every(exDone) ? '<p class="complete">Treino completo! Toque em Finalizar para salvar.</p>' : ''}
     <button class="btn primary big" data-act="finish">Finalizar treino</button>`;
+}
+
+// Exercício terminado = todas as séries planejadas registradas.
+const exSetsDone = (ex) => state.active.sets.filter((x) => x.exId === ex.id);
+const exDone = (ex) => exSetsDone(ex).length >= ex.sets;
+
+function sessionProgress(d) {
+  const n = d.exercises.filter(exDone).length;
+  const total = d.exercises.length;
+  if (!total) return '';
+  return `<div class="sprog">
+    <div class="sprog-lbl"><span class="muted">${n === total ? 'Todos os exercícios feitos' : 'Exercícios feitos'}</span><span><b>${n}</b> <span class="muted">de ${total}</span></span></div>
+    <div class="track"><i style="width:${((n / total) * 100).toFixed(1)}%"></i></div>
+  </div>`;
+}
+
+// Linha curta de um exercício terminado; tocar abre o card completo.
+function exCollapsed(ex) {
+  const a = state.active;
+  const sets = exSetsDone(ex);
+  const start = a.startProg[ex.id] ?? state.prog[ex.id] ?? null;
+  const work = a.deload
+    ? { next: L.deloadWeight(start?.weight ?? null, ex, state.settings), results: sets.map(() => ({ action: 'deload' })) }
+    : L.replay(start, sets, ex, state.settings);
+  const nextTxt = a.deload ? '' : ` · próxima vez: <b>${kg(work.next)} kg</b>`;
+  return `<button type="button" class="done-line${ui.flash === ex.id ? ' flash' : ''}" id="ex-${esc(ex.id)}" data-act="ex-expand" data-ex="${esc(ex.id)}" aria-label="${esc(ex.name)}: feito. Toque para abrir">
+    <span class="check" aria-hidden="true">✓</span>
+    <span class="name">${esc(ex.name)}</span>
+    <span class="dots" aria-hidden="true">${work.results.map((r) => `<i class="${r.action}"></i>`).join('')}</span>
+    <span class="sum">${sets.map((x) => `${kg(x.weight)}×${x.reps}`).join(' · ')}${nextTxt}</span>
+    <span class="chev" aria-hidden="true">▾</span>
+  </button>`;
 }
 
 // Sessões normais (as de deload não entram em histórico, gráficos e "última vez").
@@ -215,7 +250,10 @@ function exCard(ex, day) {
   return `<section class="card" id="ex-${esc(ex.id)}">
     <div class="ex-head">
       <h3>${esc(ex.name)}</h3>
-      <span class="chip">${ex.sets}×${ex.repMin}–${ex.repMax} · +${kg(inc)} kg</span>
+      <div class="ex-head-r">
+        <span class="chip">${ex.sets}×${ex.repMin}–${ex.repMax} · +${kg(inc)} kg</span>
+        ${done ? `<button type="button" class="btn small" data-act="ex-collapse" data-ex="${esc(ex.id)}">Recolher ▴</button>` : ''}
+      </div>
     </div>
     <p class="target">${target}</p>
     ${plates ? `<p class="plates">${plates}</p>` : ''}
@@ -839,34 +877,57 @@ function viewPlano() {
   const figOpts = (sel) => `<option value="" ${sel ? '' : 'selected'}>Sem desenho</option>`
     + Object.entries(FIGS).map(([k, f]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
   const equipOpts = (sel) =>Object.entries(L.EQUIP).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
-  return `<p class="muted small" style="margin-top:4px">Alterações são salvas na hora. O incremento em branco usa o padrão do equipamento (Ajustes).</p>
-    ${state.plan.days.map((d, di) => `<section class="card">
-      <div class="row">
+  return `<p class="muted small" style="margin-top:4px">Toque num dia para ver os exercícios e num exercício para editar. Tudo é salvo na hora.</p>
+    ${state.plan.days.map((d, di) => {
+      const open = !!ui.planOpen[d.id];
+      return `<section class="card plan-day${open ? ' is-open' : ''}">
+      <button type="button" class="plan-day-head" data-act="plan-day" data-day="${d.id}" aria-expanded="${open}">
+        <span class="pd-num">${di + 1}</span>
+        <span class="pd-main"><b>${esc(d.name)}</b>
+          <span class="small muted">${d.exercises.length} exercício${d.exercises.length === 1 ? '' : 's'}${!open && d.exercises.length ? ` · ${d.exercises.map((e) => esc(e.name)).join(' · ')}` : ''}</span></span>
+        <span class="chev" aria-hidden="true">${open ? '▴' : '▾'}</span>
+      </button>
+      ${open ? `<div class="row pd-tools">
         <input class="grow" aria-label="Nome do dia" data-pf="dayName" data-day="${d.id}" value="${esc(d.name)}">
         <button class="btn icon small" data-act="day-move" data-day="${d.id}" data-dir="-1" ${di === 0 ? 'disabled' : ''} aria-label="Subir dia">↑</button>
         <button class="btn icon small" data-act="day-move" data-day="${d.id}" data-dir="1" ${di === state.plan.days.length - 1 ? 'disabled' : ''} aria-label="Descer dia">↓</button>
         <button class="btn icon small danger" data-act="day-del" data-day="${d.id}" aria-label="Remover dia">🗑</button>
       </div>
-      ${d.exercises.map((e, ei) => `<div class="ex-edit">
-        <div class="row">
-          <input class="grow" aria-label="Nome do exercício" data-pf="name" data-day="${d.id}" data-ex="${e.id}" value="${esc(e.name)}">
-          <button class="btn icon small" data-act="ex-move" data-day="${d.id}" data-ex="${e.id}" data-dir="-1" ${ei === 0 ? 'disabled' : ''} aria-label="Subir">↑</button>
-          <button class="btn icon small" data-act="ex-move" data-day="${d.id}" data-ex="${e.id}" data-dir="1" ${ei === d.exercises.length - 1 ? 'disabled' : ''} aria-label="Descer">↓</button>
-          <button class="btn icon small danger" data-act="ex-del" data-day="${d.id}" data-ex="${e.id}" aria-label="Remover">✕</button>
-        </div>
-        <div class="grid">
-          <label class="field">Séries<input inputmode="numeric" data-pf="sets" data-day="${d.id}" data-ex="${e.id}" value="${e.sets}"></label>
-          <label class="field">Reps mín.<input inputmode="numeric" data-pf="repMin" data-day="${d.id}" data-ex="${e.id}" value="${e.repMin}"></label>
-          <label class="field">Reps máx.<input inputmode="numeric" data-pf="repMax" data-day="${d.id}" data-ex="${e.id}" value="${e.repMax}"></label>
-          <label class="field">+kg<input inputmode="decimal" data-pf="inc" data-day="${d.id}" data-ex="${e.id}" value="${e.inc ?? ''}" placeholder="${kg(state.settings.inc[e.equip])}"></label>
-          <label class="field wide">Equipamento<select data-pf="equip" data-day="${d.id}" data-ex="${e.id}">${equipOpts(e.equip)}</select></label>
-          <label class="field wide">Próxima carga (kg)<input inputmode="decimal" data-pf="target" data-day="${d.id}" data-ex="${e.id}" value="${state.prog[e.id]?.weight != null ? String(state.prog[e.id].weight).replace('.', ',') : ''}" placeholder="—"></label>
-          <label class="field full">Desenho<select data-pf="fig" data-day="${d.id}" data-ex="${e.id}">${figOpts(figKey(e))}</select></label>
-          <label class="check full"><input type="checkbox" data-pf="warmup" data-day="${d.id}" data-ex="${e.id}" ${L.isWarmupEx(d, e) ? 'checked' : ''}> Mostrar aquecimento antes deste exercício</label>
-        </div>
-      </div>`).join('')}
-      <button class="btn small" style="margin-top:8px" data-act="ex-add" data-day="${d.id}">+ Exercício</button>
-    </section>`).join('')}
+      <div class="pex-list">
+      ${d.exercises.map((e, ei) => {
+        const editing = ui.planEx === e.id;
+        const next = state.prog[e.id]?.weight;
+        return `<div class="pex${editing ? ' is-open' : ''}">
+        <button type="button" class="pex-line" data-act="plan-ex" data-ex="${e.id}" aria-expanded="${editing}">
+          <span class="pex-main"><b>${esc(e.name)}</b>
+            <span class="small muted">${e.sets}×${e.repMin}–${e.repMax} · ${L.EQUIP[e.equip] ?? ''} · +${kg(L.incFor(e, state.settings))} kg${next != null ? ` · próxima: ${kg(next)} kg` : ''}${L.isWarmupEx(d, e) ? ' · aquecimento' : ''}</span></span>
+          <span class="chev" aria-hidden="true">${editing ? '▴' : '✎'}</span>
+        </button>
+        ${editing ? `<div class="ex-edit">
+          <div class="row">
+            <input class="grow" aria-label="Nome do exercício" data-pf="name" data-day="${d.id}" data-ex="${e.id}" value="${esc(e.name)}">
+            <button class="btn icon small" data-act="ex-move" data-day="${d.id}" data-ex="${e.id}" data-dir="-1" ${ei === 0 ? 'disabled' : ''} aria-label="Subir">↑</button>
+            <button class="btn icon small" data-act="ex-move" data-day="${d.id}" data-ex="${e.id}" data-dir="1" ${ei === d.exercises.length - 1 ? 'disabled' : ''} aria-label="Descer">↓</button>
+            <button class="btn icon small danger" data-act="ex-del" data-day="${d.id}" data-ex="${e.id}" aria-label="Remover">✕</button>
+          </div>
+          <div class="grid">
+            <label class="field">Séries<input inputmode="numeric" data-pf="sets" data-day="${d.id}" data-ex="${e.id}" value="${e.sets}"></label>
+            <label class="field">Reps mín.<input inputmode="numeric" data-pf="repMin" data-day="${d.id}" data-ex="${e.id}" value="${e.repMin}"></label>
+            <label class="field">Reps máx.<input inputmode="numeric" data-pf="repMax" data-day="${d.id}" data-ex="${e.id}" value="${e.repMax}"></label>
+            <label class="field">+kg<input inputmode="decimal" data-pf="inc" data-day="${d.id}" data-ex="${e.id}" value="${e.inc ?? ''}" placeholder="${kg(state.settings.inc[e.equip])}"></label>
+            <label class="field wide">Equipamento<select data-pf="equip" data-day="${d.id}" data-ex="${e.id}">${equipOpts(e.equip)}</select></label>
+            <label class="field wide">Próxima carga (kg)<input inputmode="decimal" data-pf="target" data-day="${d.id}" data-ex="${e.id}" value="${next != null ? String(next).replace('.', ',') : ''}" placeholder="—"></label>
+            <label class="field full">Desenho<select data-pf="fig" data-day="${d.id}" data-ex="${e.id}">${figOpts(figKey(e))}</select></label>
+            <label class="check full"><input type="checkbox" data-pf="warmup" data-day="${d.id}" data-ex="${e.id}" ${L.isWarmupEx(d, e) ? 'checked' : ''}> Mostrar aquecimento antes deste exercício</label>
+          </div>
+          <div class="row end"><button class="btn small" data-act="plan-ex" data-ex="${e.id}">Pronto ▴</button></div>
+        </div>` : ''}
+      </div>`;
+      }).join('')}
+      </div>
+      <button class="btn small" data-act="ex-add" data-day="${d.id}">+ Exercício</button>` : ''}
+    </section>`;
+    }).join('')}
     <button class="btn" data-act="day-add">+ Adicionar dia</button>
     <button class="btn ghost small" style="margin-left:8px" data-act="plan-reset">Restaurar plano do livro</button>`;
 }
@@ -975,6 +1036,7 @@ const actions = {
     state.active = { id: L.uid('s'), dayId: d.id, date: L.isoDate(new Date()), startProg, sets: [], deload: !!state.deload };
     ui.warm = {};
     ui.noteEdit = null;
+    ui.open = {};
     ui.drafts = {};
     ui.extra = {};
     save();
@@ -999,7 +1061,38 @@ const actions = {
     save();
     navigator.vibrate?.(30);
     startTimer(state.settings.restSec);
+    const justFinished = exSetsDone(found.ex).length === found.ex.sets;
+    if (justFinished) {
+      // terminou o exercício: recolhe, destaca e desce até o próximo que falta
+      delete ui.open[exId];
+      ui.flash = exId;
+    }
     render();
+    ui.flash = null;
+    if (justFinished) {
+      const next = found.day.exercises.find((e) => !exDone(e));
+      setTimeout(() => {
+        if (!state.active) return;
+        const target = next ? document.getElementById(`ex-${next.id}`) : $('.complete');
+        target?.scrollIntoView({ behavior: smoothScroll(), block: next ? 'start' : 'center' });
+        if (next) $(`#ex-${next.id} [data-draft="r"]`)?.focus({ preventScroll: true });
+      }, 450);
+    }
+  },
+
+  'ex-expand'(el) {
+    ui.open[el.dataset.ex] = true;
+    render();
+    document.getElementById(`ex-${el.dataset.ex}`)?.scrollIntoView({ behavior: smoothScroll(), block: 'start' });
+  },
+
+  'ex-collapse'(el) {
+    delete ui.open[el.dataset.ex];
+    delete ui.extra[el.dataset.ex];
+    ui.flash = el.dataset.ex;
+    render();
+    ui.flash = null;
+    document.getElementById(`ex-${el.dataset.ex}`)?.scrollIntoView({ behavior: smoothScroll(), block: 'nearest' });
   },
 
   undo(el) {
@@ -1178,8 +1271,22 @@ const actions = {
     render();
   },
 
+  'plan-day'(el) {
+    const id = el.dataset.day;
+    ui.planOpen[id] = !ui.planOpen[id];
+    if (!ui.planOpen[id]) ui.planEx = null;
+    render();
+  },
+
+  'plan-ex'(el) {
+    ui.planEx = ui.planEx === el.dataset.ex ? null : el.dataset.ex;
+    render();
+  },
+
   'day-add'() {
-    state.plan.days.push({ id: L.uid('d'), name: `Dia ${state.plan.days.length + 1}`, exercises: [] });
+    const id = L.uid('d');
+    state.plan.days.push({ id, name: `Dia ${state.plan.days.length + 1}`, exercises: [] });
+    ui.planOpen[id] = true;
     save();
     render();
   },
@@ -1200,7 +1307,9 @@ const actions = {
 
   'ex-add'(el) {
     const d = dayById(el.dataset.day);
-    d.exercises.push({ id: L.uid('e'), name: 'Novo exercício', equip: 'barra', sets: 3, repMin: 4, repMax: 6, inc: null });
+    const id = L.uid('e');
+    d.exercises.push({ id, name: 'Novo exercício', equip: 'barra', sets: 3, repMin: 4, repMax: 6, inc: null });
+    ui.planEx = id;
     save();
     render();
   },

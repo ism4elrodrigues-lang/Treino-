@@ -19,6 +19,8 @@ A carga com que você termina um exercício vira a carga sugerida no próximo tr
 
 - Divisão de 5 dias do livro (Peito, Costas, Ombros, Pernas, Braços), editável na aba **Plano**
 - Rodízio automático: o app sugere o próximo dia
+- Exercício terminado se **recolhe** numa linha (séries, cores do resultado e carga da próxima vez), a tela desce até o próximo e o topo mostra "Exercícios feitos X de Y". Tocar na linha abre de novo
+- **Plano** organizado: dias fechados mostrando os exercícios; abrir um dia lista os exercícios em linhas curtas e só um abre para edição por vez
 - **Como fazer**: desenho animado de cada exercício (posição inicial → final), músculos trabalhados e 3 dicas de execução. Exercícios novos podem usar qualquer desenho, escolhido no Plano
 - Timer de descanso (3 min por padrão) que começa sozinho, com vibração e bipe
 - **Aquecimento** antes do primeiro exercício do dia: 12 reps a 50%, 10 a 50%, 4 a 70% e 1 a 90% da carga de trabalho. Aparece mesmo sem carga salva (calcula enquanto você digita) e cada série tem ✓ que inicia o descanso (1 min, e 3 min antes da série pesada)
