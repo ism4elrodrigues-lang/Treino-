@@ -10,6 +10,13 @@ test('comparação escolhe o maior item que cabe e arredonda', () => {
   assert.equal(F.compare(1100).text, 'um carro popular');
   assert.equal(F.compare(1000000).text, '5 Estátuas da Liberdade');
   assert.equal(F.compare(0), null);
+  assert.equal(F.compare(85).text, 'uma onça-pintada');
+  assert.equal(F.compare(5200).text, 'uma orca');
+});
+
+test('lista de comparações em ordem crescente e sem repetição', () => {
+  for (let i = 1; i < F.THINGS.length; i++) assert.ok(F.THINGS[i].kg > F.THINGS[i - 1].kg, F.THINGS[i].s);
+  assert.equal(new Set(F.THINGS.map((t) => t.e)).size, F.THINGS.length);
 });
 
 test('volume, série mais pesada e total', () => {
