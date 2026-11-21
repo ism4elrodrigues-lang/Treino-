@@ -2,6 +2,7 @@ import * as L from './logic.js';
 import { FIGS, mountHowto, figureSVG } from './figures.js';
 import * as D from './diet.js';
 import { FOODS } from './foods.js';
+import * as F from './fun.js';
 
 const KEY = 'treino-mss-v1';
 const TIMER_KEY = 'treino-mss-timer';
@@ -81,12 +82,93 @@ function render() {
   const view = $('#view');
   const views = { treino: viewTreino, historico: viewHistorico, corpo: viewCorpo, plano: viewPlano, config: viewConfig };
   view.innerHTML = views[ui.tab]();
-  document.body.classList.toggle('on-home', ui.tab === 'treino' && !state.active);
+  document.body.classList.toggle('on-home', ui.tab === 'treino' && !state.active && !ui.summary);
   view.querySelectorAll('[data-fig]').forEach((el) => mountHowto(el, el.dataset.fig));
+}
+
+// Dias registrados na dieta em que a proteína ficou em pelo menos 95% da meta.
+function proteinDays() {
+  const goal = dietGoal();
+  if (!goal) return 0;
+  return Object.values(state.diet.log).filter((day) => D.dayTotals(state.diet.menu, day, foodById).p >= goal.p * 0.95).length;
+}
+
+const thingText = (c) => (c ? `${c.t.e} ${c.text}` : '');
+
+// Resumo comemorativo ao finalizar o treino.
+function viewSummary() {
+  const s = state.sessions[ui.summary.idx];
+  const vol = F.sessionVolume(s);
+  const c = F.compare(vol);
+  const top = F.heaviestSet(s);
+  const ct = top ? F.compare(top.weight) : null;
+  const total = F.totalVolume(state.sessions);
+  const cTot = F.compare(total);
+  const h = L.sessionHighlights(state.sessions, ui.summary.idx);
+  const medals = F.achievements(state.sessions, { proteinDays: proteinDays() }).filter((m) => ui.summary.unlocked.includes(m.id));
+  const next = dayById(L.nextDayId(state.plan, state.sessions));
+  return `<div class="summary">
+    <section class="card done-hero">
+      <p class="eyebrow">Treino de ${esc(s.dayName)} concluído${s.deload ? ' · deload' : ''}</p>
+      <h2>Você levantou hoje</h2>
+      <p class="bigkg num">${g0(vol)} <small>kg</small></p>
+      ${c ? `<div class="beast" aria-hidden="true">${c.t.e}${c.count > 1 ? `<span class="x">×${c.count}</span>` : ''}</div>
+        <p class="equiv">o mesmo que <b>${esc(c.text)}</b></p>
+        ${c.next ? `<p class="small muted">Faltam ${tons(c.next.kg - vol)} para ${esc(c.next.s)} ${c.next.e}</p>` : ''}` : ''}
+    </section>
+    <div class="row2">
+      ${top ? `<div class="card mini"><span class="lbl">Série mais pesada</span><span class="em" aria-hidden="true">${ct?.t.e ?? '🏋️'}</span>
+        <b class="num">${kg(top.weight)} kg</b><span class="small muted">${esc(top.exName)}${ct ? ` · ${esc(ct.text)}` : ''}</span></div>` : ''}
+      <div class="card mini"><span class="lbl">Desde o início</span><span class="em" aria-hidden="true">${cTot?.t.e ?? '🏋️'}</span>
+        <b class="num">${tons(total)}</b><span class="small muted">${cTot ? `≈ ${esc(cTot.text)}` : ''}</span></div>
+    </div>
+    ${medals.map((m) => `<section class="card unlock"><span class="medal" aria-hidden="true">${m.e}</span>
+      <div><p class="eyebrow">Nova conquista</p><p><b>${esc(m.t)}</b></p><p class="small muted">${esc(m.d)}</p></div></section>`).join('')}
+    <section class="card"><div class="tags">
+      ${h.ups ? `<span class="tag ok">▲ ${h.ups} carga${h.ups > 1 ? 's' : ''} subi${h.ups > 1 ? 'ram' : 'u'}</span>` : ''}
+      ${h.records ? `<span class="tag acc">${h.records} recorde${h.records > 1 ? 's' : ''}</span>` : ''}
+      <span class="tag">${h.sets} séries${s.min ? ` · ${s.min} min` : ''}</span>
+    </div></section>
+    <button class="btn primary big" data-act="summary-close">Voltar ao início</button>
+    ${next ? `<p class="small muted" style="text-align:center">Próximo treino: <b>${esc(next.name)}</b></p>` : ''}
+  </div>`;
+}
+
+const tons = (kgv) => (kgv >= 1000 ? `${(kgv / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} t` : `${g0(kgv)} kg`);
+
+function viewMedals() {
+  const list = F.achievements(state.sessions, { proteinDays: proteinDays() });
+  const got = list.filter((m) => m.ok).length;
+  return `<button class="btn ghost small" data-act="hist-medals" style="margin:4px 0 10px">← Histórico</button>
+    <section class="card"><p><b>${got} de ${list.length} conquistas</b></p>
+      <div class="track"><i style="width:${((got / list.length) * 100).toFixed(1)}%"></i></div></section>
+    <div class="medals">${list.map((m) => `<div class="m${m.ok ? '' : ' locked'}">
+      <span class="medal" aria-hidden="true">${m.e}</span><b>${esc(m.t)}</b><span>${esc(m.d)}</span>
+      ${!m.ok && m.prog != null ? `<span class="bar" aria-label="${Math.round(m.prog * 100)}% do caminho"><i style="width:${(m.prog * 100).toFixed(1)}%"></i></span>` : ''}
+    </div>`).join('')}</div>
+    <section class="card"><span class="lbl">Pesos usados nas comparações</span>
+      <table class="thing-table">${F.THINGS.map((t) => `<tr><td aria-hidden="true">${t.e}</td><td>${t.s[0].toUpperCase() + t.s.slice(1)}</td><td>~${tons(t.kg)}</td></tr>`).join('')}</table>
+      <p class="small muted">Pesos médios aproximados de animais adultos e de modelos comuns de objetos.</p>
+    </section>`;
+}
+
+// Total levantado desde o início, com o bicho/objeto equivalente e o próximo da lista.
+function totalCard() {
+  const total = F.totalVolume(state.sessions);
+  const c = F.compare(total);
+  if (!c) return '';
+  const pct = c.next ? Math.min(100, (total / c.next.kg) * 100) : 100;
+  return `<button type="button" class="card home-total" data-act="home-medals" aria-label="Abrir conquistas">
+    <span class="ht-top"><span><span class="lbl">Desde o início</span><span class="big num">${tons(total)}</span>
+      <span class="small">≈ <b class="acc">${esc(c.text)}</b></span></span><span class="em" aria-hidden="true">${c.t.e}</span></span>
+    ${c.next ? `<span class="track"><i style="width:${pct.toFixed(1)}%"></i></span>
+      <span class="small muted">Próximo: ${esc(c.next.s)} ${c.next.e} · faltam ${tons(c.next.kg - total)}</span>` : ''}
+  </button>`;
 }
 
 function viewTreino() {
   if (state.active) return viewActive();
+  if (ui.summary && state.sessions[ui.summary.idx]) return viewSummary();
   const days = state.plan.days;
   if (!days.length) return `<div class="empty">Nenhum dia no plano.<br><br><button class="btn" data-goto="plano">Montar o plano</button></div>`;
   const now = new Date();
@@ -178,7 +260,7 @@ function viewTreino() {
     lastCard = `<section class="card home-last">
       <span class="ic">✓</span>
       <div><p><b>Último treino: ${esc(ls.dayName)}</b> <span class="small muted">· ${L.parseIsoDate(ls.date).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })}</span></p>
-      <div class="tags">${ls.deload ? '<span class="tag">deload</span>' : ''}${h.ups ? `<span class="tag ok">▲ ${h.ups} carga${h.ups > 1 ? 's' : ''} subi${h.ups > 1 ? 'ram' : 'u'}</span>` : ''}${h.records ? `<span class="tag acc">${h.records} recorde${h.records > 1 ? 's' : ''}</span>` : ''}<span class="tag">${h.sets} séries</span></div></div>
+      <div class="tags">${ls.deload ? '<span class="tag">deload</span>' : ''}${F.compare(F.sessionVolume(ls)) ? `<span class="tag acc">${thingText(F.compare(F.sessionVolume(ls)))}</span>` : ''}${h.ups ? `<span class="tag ok">▲ ${h.ups} carga${h.ups > 1 ? 's' : ''} subi${h.ups > 1 ? 'ram' : 'u'}</span>` : ''}${h.records ? `<span class="tag acc">${h.records} recorde${h.records > 1 ? 's' : ''}</span>` : ''}<span class="tag">${h.sets} séries</span></div></div>
     </section>`;
   }
 
@@ -193,7 +275,7 @@ function viewTreino() {
     <div class="greet"><div><p class="small muted">${now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${hello}</h1></div>
       ${streak >= 2 ? `<span class="streak">${streak} semanas seguidas</span>` : ''}</div>
     ${banner && (state.deload || st.level !== 'proximo') ? banner : ''}
-    ${hero}${seq}${week}${weight}${lastCard}
+    ${hero}${seq}${week}${totalCard()}${weight}${lastCard}
     ${banner && (state.deload || st.level !== 'proximo') ? '' : deload}
   </div>`;
 }
@@ -553,7 +635,13 @@ function chartSvg(h) {
 }
 
 function viewHistorico() {
-  if (!state.sessions.length) return `<div class="empty">Nenhum treino registrado ainda.<br>Finalize um treino para ver sua evolução aqui.</div>`;
+  if (ui.histView === 'medals') return viewMedals();
+  const medalList = F.achievements(state.sessions, { proteinDays: proteinDays() });
+  const medalBtn = `<button type="button" class="card medal-link" data-act="hist-medals">
+    <span class="em" aria-hidden="true">🏆</span>
+    <span><b>Conquistas</b><span class="small muted"> · ${medalList.filter((m) => m.ok).length} de ${medalList.length}</span></span>
+    <span class="chev" aria-hidden="true">›</span></button>`;
+  if (!state.sessions.length) return `${medalBtn}<div class="empty">Nenhum treino registrado ainda.<br>Finalize um treino para ver sua evolução aqui.</div>`;
 
   // exercícios com histórico: primeiro na ordem do plano, depois os removidos
   const names = new Map();
@@ -568,7 +656,7 @@ function viewHistorico() {
   const best = h.reduce((a, b) => (b.e1rm > a.e1rm ? b : a), h[0]);
   const prog = state.prog[ui.histEx];
 
-  return `<section class="card">
+  return `${medalBtn}<section class="card">
       <label class="field">Exercício
         <select data-hist>${ordered.map(([id, n]) => `<option value="${esc(id)}" ${id === ui.histEx ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
       </label>
@@ -586,7 +674,9 @@ function viewHistorico() {
         if (!byEx.has(x.exId)) byEx.set(x.exId, { name: x.exName, sets: [] });
         byEx.get(x.exId).sets.push(x);
       }
-      return `<details class="sess"><summary>${esc(s.dayName)} · ${fmtDateLong(s.date)}${s.deload ? ' · deload' : ''}</summary>
+      const cmp = F.compare(F.sessionVolume(s));
+      return `<details class="sess"><summary><span>${esc(s.dayName)} · ${fmtDateLong(s.date)}${s.deload ? ' · deload' : ''}</span>
+          ${cmp ? `<span class="sess-eq">${g0(F.sessionVolume(s))} kg ≈ <b>${esc(cmp.text)}</b> <span aria-hidden="true">${cmp.t.e}</span></span>` : ''}</summary>
         <ul>${[...byEx.values()].map((g) => `<li>${esc(g.name)}: ${g.sets.map((x) => `${kg(x.weight)}×${x.reps}${x.note ? ` (📝 ${esc(x.note)})` : ''}`).join(' · ')}</li>`).join('')}</ul>
         <div class="row end"><button class="btn ghost small danger" data-act="del-session" data-id="${esc(s.id)}">Apagar treino</button></div>
       </details>`;
@@ -1300,6 +1390,25 @@ const actions = {
     if (justFinished) goToItem(next?.id ?? null);
   },
 
+  'summary-close'() {
+    ui.summary = null;
+    render();
+    window.scrollTo(0, 0);
+  },
+
+  'hist-medals'() {
+    ui.histView = ui.histView === 'medals' ? null : 'medals';
+    render();
+    window.scrollTo(0, 0);
+  },
+
+  'home-medals'() {
+    ui.tab = 'historico';
+    ui.histView = 'medals';
+    render();
+    window.scrollTo(0, 0);
+  },
+
   'home-day'(el) {
     ui.homeDay = el.dataset.day;
     render();
@@ -1469,6 +1578,9 @@ const actions = {
       return;
     }
     const d = dayById(a.dayId);
+    const medalsBefore = F.achievements(state.sessions, { proteinDays: proteinDays() });
+    const times = a.sets.map((x) => x.t).filter(Boolean);
+    const minutes = times.length > 1 ? Math.round((Math.max(...times) - Math.min(...times)) / 60000) + 3 : null;
     const exIds = a.deload ? [] : [...new Set(a.sets.map((s) => s.exId))]; // deload não mexe na progressão
     for (const exId of exIds) {
       const ex = findEx(exId)?.ex;
@@ -1484,12 +1596,14 @@ const actions = {
       dayName: d?.name ?? 'Treino',
       sets: a.sets.map(({ exId, exName, weight, reps, note }) => (note ? { exId, exName, weight, reps, note } : { exId, exName, weight, reps })),
       ...(a.deload ? { deload: true } : {}),
+      ...(minutes ? { min: minutes } : {}),
     });
     state.active = null;
     save();
     stopTimer();
-    const next = dayById(L.nextDayId(state.plan, state.sessions));
-    toast(`Treino salvo! Próximo: ${next?.name ?? '—'}`);
+    const unlocked = F.newlyUnlocked(medalsBefore, F.achievements(state.sessions, { proteinDays: proteinDays() }));
+    ui.summary = { idx: state.sessions.length - 1, unlocked: unlocked.map((m) => m.id) };
+    ui.tab = 'treino';
     render();
     window.scrollTo(0, 0);
   },
@@ -1707,6 +1821,8 @@ document.addEventListener('click', (ev) => {
   const tab = ev.target.closest('[data-tab]');
   if (tab) {
     ui.tab = tab.dataset.tab;
+    ui.summary = null;
+    ui.histView = null;
     render();
     window.scrollTo(0, 0);
     return;

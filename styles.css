@@ -627,3 +627,60 @@ body.on-home .top { display: none; }
 .done-line.is-skipped { opacity: .7; }
 .done-line.is-skipped .check { background: var(--card-2); color: var(--muted); }
 .warm-line .check { font-size: .95rem; }
+
+/* ---------- comparações com bichos e conquistas ---------- */
+
+.summary { display: grid; gap: 12px; padding-top: 4px; }
+.summary .card { margin: 0; display: grid; gap: 6px; }
+.done-hero { text-align: center; padding: 22px 16px 18px;
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--accent) 18%, var(--card)) 0%, var(--card) 70%); }
+.done-hero h2 { font-size: 1.5rem; }
+.done-hero .eyebrow { margin: 0; }
+.bigkg { font-size: 2.2rem; font-weight: 900; letter-spacing: -.02em; margin: 0; }
+.bigkg small { font-size: 1rem; color: var(--muted); font-weight: 700; }
+.beast { font-size: 4.4rem; line-height: 1; margin: 6px 0 2px; }
+.beast .x { font-size: 1.5rem; font-weight: 900; color: var(--accent); vertical-align: middle; margin-left: 4px; }
+.equiv { margin: 0; font-size: 1.12rem; font-weight: 800; }
+.equiv b, .acc { color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mini { align-content: start; }
+.mini .em { font-size: 2rem; line-height: 1; }
+.mini b { font-size: 1.15rem; }
+.lbl { font-size: .74rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.unlock { grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 12px !important; border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.unlock p { margin: 0; }
+.medal { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-size: 1.6rem;
+  background: color-mix(in srgb, var(--accent) 20%, var(--card-2)); border: 2px solid var(--accent); }
+.summary .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.summary .tag { font-size: .74rem; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--card-2); color: var(--muted); }
+.summary .tag.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+.summary .tag.acc { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+
+.medal-link { appearance: none; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--text);
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.medal-link .em { font-size: 1.6rem; }
+.medal-link .chev { color: var(--muted); font-size: 1.3rem; }
+.medals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+.medals .m { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 12px 6px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.medals .medal { width: 54px; height: 54px; }
+.medals b { font-size: .8rem; line-height: 1.2; }
+.medals span:not(.medal):not(.bar) { font-size: .72rem; color: var(--muted); line-height: 1.25; }
+.medals .locked .medal { filter: grayscale(1); opacity: .35; border-color: var(--line); background: var(--card-2); }
+.medals .locked b { color: var(--muted); }
+.medals .bar { width: 80%; height: 4px; border-radius: 4px; background: var(--card-2); overflow: hidden; }
+.medals .bar i { display: block; height: 100%; background: var(--info); }
+.thing-table { width: 100%; border-collapse: collapse; font-size: .88rem; margin-top: 6px; }
+.thing-table td { padding: 6px 4px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.thing-table td:first-child { width: 2em; font-size: 1.15rem; }
+.thing-table td:last-child { text-align: right; color: var(--muted); }
+
+details.sess summary { display: flex; flex-direction: column; gap: 2px; }
+.sess-eq { font-size: .84rem; font-weight: 500; color: var(--muted); }
+.sess-eq b { color: var(--accent); }
+
+.home-total { appearance: none; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--text); display: grid; gap: 8px; }
+.home-total .ht-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.home-total .ht-top > span:first-child { display: grid; gap: 2px; }
+.home-total .big { font-size: 1.6rem; font-weight: 900; }
+.home-total .em { font-size: 2.6rem; line-height: 1; }
+.home-total .track i { background: var(--accent); }
