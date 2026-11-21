@@ -21,7 +21,7 @@ const TAG = { subir: '▲ subir', manter: '= manter', voltar: '▼ voltar', abai
 // ---------- estado ----------
 
 let state = load();
-const ui = { tab: 'treino', drafts: {}, extra: {}, histEx: null, howto: {}, warm: {}, noteEdit: null, open: {}, flash: null, planOpen: {}, planEx: null };
+const ui = { tab: 'treino', drafts: {}, extra: {}, histEx: null, howto: {}, warm: {}, noteEdit: null, current: null, flash: null, planOpen: {}, planEx: null };
 const smoothScroll = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
 // Desenho do exercício: o escolhido no plano, ou o padrão pelo id do exercício do livro.
@@ -118,7 +118,10 @@ function viewActive() {
       <button class="btn ghost small danger" data-act="cancel">Cancelar</button>
     </div>
     ${sessionProgress(d)}
-    ${d.exercises.map((e) => (exDone(e) && !ui.open[e.id] ? exCollapsed(e) : exCard(e, d))).join('')}
+    ${(() => {
+      const cur = currentExId(d);
+      return d.exercises.map((e, i) => (e.id === cur ? exCard(e, d) : exDone(e) ? exCollapsed(e) : exPending(e, i))).join('');
+    })()}
     ${d.exercises.length && d.exercises.every(exDone) ? '<p class="complete">Treino completo! Toque em Finalizar para salvar.</p>' : ''}
     <button class="btn primary big" data-act="finish">Finalizar treino</button>`;
 }
@@ -137,20 +140,47 @@ function sessionProgress(d) {
   </div>`;
 }
 
-// Linha curta de um exercício terminado; tocar abre o card completo.
-function exCollapsed(ex) {
+// Só um exercício fica aberto: o escolhido (ui.current) ou, se nenhum foi escolhido, o primeiro que falta.
+// ui.current === 'none' significa que o usuário recolheu tudo.
+function currentExId(d) {
+  if (ui.current === 'none') return null;
+  if (ui.current && d.exercises.some((e) => e.id === ui.current)) return ui.current;
+  return d.exercises.find((e) => !exDone(e))?.id ?? null;
+}
+
+function exWork(ex) {
   const a = state.active;
   const sets = exSetsDone(ex);
   const start = a.startProg[ex.id] ?? state.prog[ex.id] ?? null;
   const work = a.deload
     ? { next: L.deloadWeight(start?.weight ?? null, ex, state.settings), results: sets.map(() => ({ action: 'deload' })) }
     : L.replay(start, sets, ex, state.settings);
-  const nextTxt = a.deload ? '' : ` · próxima vez: <b>${kg(work.next)} kg</b>`;
-  return `<button type="button" class="done-line${ui.flash === ex.id ? ' flash' : ''}" id="ex-${esc(ex.id)}" data-act="ex-expand" data-ex="${esc(ex.id)}" aria-label="${esc(ex.name)}: feito. Toque para abrir">
+  return { sets, work };
+}
+
+// Linha verde de um exercício terminado; tocar abre o card completo.
+function exCollapsed(ex) {
+  const { sets, work } = exWork(ex);
+  const nextTxt = state.active.deload ? '' : ` · próxima vez: <b>${kg(work.next)} kg</b>`;
+  return `<button type="button" class="done-line is-done${ui.flash === ex.id ? ' flash' : ''}" id="ex-${esc(ex.id)}" data-act="ex-expand" data-ex="${esc(ex.id)}" aria-label="${esc(ex.name)}: feito. Toque para abrir">
     <span class="check" aria-hidden="true">✓</span>
     <span class="name">${esc(ex.name)}</span>
     <span class="dots" aria-hidden="true">${work.results.map((r) => `<i class="${r.action}"></i>`).join('')}</span>
     <span class="sum">${sets.map((x) => `${kg(x.weight)}×${x.reps}`).join(' · ')}${nextTxt}</span>
+    <span class="chev" aria-hidden="true">▾</span>
+  </button>`;
+}
+
+// Linha cinza de um exercício que falta (ou amarela fraca, se já tem séries registradas).
+function exPending(ex, i) {
+  const { sets, work } = exWork(ex);
+  const started = sets.length > 0;
+  const load = work.next != null ? `${started ? 'próxima' : 'hoje'}: <b>${kg(work.next)} kg</b>` : 'carga a definir';
+  return `<button type="button" class="done-line ${started ? 'is-started' : 'is-pending'}" id="ex-${esc(ex.id)}" data-act="ex-expand" data-ex="${esc(ex.id)}" aria-label="${esc(ex.name)}: ${started ? 'em andamento' : 'falta fazer'}. Toque para abrir">
+    <span class="check" aria-hidden="true">${i + 1}</span>
+    <span class="name">${esc(ex.name)}</span>
+    ${started ? `<span class="dots" aria-hidden="true">${work.results.map((r) => `<i class="${r.action}"></i>`).join('')}</span>` : '<span></span>'}
+    <span class="sum">${started ? `em andamento · ${sets.length} de ${ex.sets} · ` : `${ex.sets}×${ex.repMin}–${ex.repMax} · `}${load}</span>
     <span class="chev" aria-hidden="true">▾</span>
   </button>`;
 }
@@ -247,12 +277,12 @@ function exCard(ex, day) {
   }
   const plates = platesText(ex, work.next);
 
-  return `<section class="card" id="ex-${esc(ex.id)}">
+  return `<section class="card is-current" id="ex-${esc(ex.id)}">
     <div class="ex-head">
       <h3>${esc(ex.name)}</h3>
       <div class="ex-head-r">
         <span class="chip">${ex.sets}×${ex.repMin}–${ex.repMax} · +${kg(inc)} kg</span>
-        ${done ? `<button type="button" class="btn small" data-act="ex-collapse" data-ex="${esc(ex.id)}">Recolher ▴</button>` : ''}
+        <button type="button" class="btn small" data-act="ex-collapse" data-ex="${esc(ex.id)}">Recolher ▴</button>
       </div>
     </div>
     <p class="target">${target}</p>
@@ -1036,7 +1066,7 @@ const actions = {
     state.active = { id: L.uid('s'), dayId: d.id, date: L.isoDate(new Date()), startProg, sets: [], deload: !!state.deload };
     ui.warm = {};
     ui.noteEdit = null;
-    ui.open = {};
+    ui.current = null;
     ui.drafts = {};
     ui.extra = {};
     save();
@@ -1062,15 +1092,20 @@ const actions = {
     navigator.vibrate?.(30);
     startTimer(state.settings.restSec);
     const justFinished = exSetsDone(found.ex).length === found.ex.sets;
+    let next = null;
     if (justFinished) {
-      // terminou o exercício: recolhe, destaca e desce até o próximo que falta
-      delete ui.open[exId];
+      // terminou o exercício: fica verde e fechado, e o próximo que falta abre
+      const list = found.day.exercises;
+      const pos = list.findIndex((e) => e.id === exId);
+      const order = [...list.slice(pos + 1), ...list.slice(0, pos)];
+      // volta primeiro para um exercício que ficou pela metade; senão, o próximo da lista
+      next = order.find((e) => !exDone(e) && exSetsDone(e).length > 0) ?? order.find((e) => !exDone(e)) ?? null;
+      ui.current = next ? next.id : 'none';
       ui.flash = exId;
     }
     render();
     ui.flash = null;
     if (justFinished) {
-      const next = found.day.exercises.find((e) => !exDone(e));
       setTimeout(() => {
         if (!state.active) return;
         const target = next ? document.getElementById(`ex-${next.id}`) : $('.complete');
@@ -1081,13 +1116,13 @@ const actions = {
   },
 
   'ex-expand'(el) {
-    ui.open[el.dataset.ex] = true;
+    ui.current = el.dataset.ex;
     render();
     document.getElementById(`ex-${el.dataset.ex}`)?.scrollIntoView({ behavior: smoothScroll(), block: 'start' });
   },
 
   'ex-collapse'(el) {
-    delete ui.open[el.dataset.ex];
+    ui.current = 'none';
     delete ui.extra[el.dataset.ex];
     ui.flash = el.dataset.ex;
     render();

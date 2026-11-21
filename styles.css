@@ -529,3 +529,14 @@ ol.tl > li:not(:last-child)::before {
 .pex-line .chev { color: var(--muted); }
 .pex .ex-edit { border-top: 1px solid var(--line); padding: 10px 12px 12px; }
 .pex .ex-edit input, .pex .ex-edit select { background: var(--card); }
+
+/* ---------- um exercício aberto por vez: feito (verde), agora (amarelo), falta (cinza) ---------- */
+
+.card.is-current { border: 2px solid var(--accent); }
+.done-line.is-done { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); background: color-mix(in srgb, var(--ok) 7%, var(--card)); }
+.done-line.is-pending .check { background: var(--card-2); color: var(--muted); font-size: .9rem; }
+.done-line.is-pending .name { color: var(--muted); }
+.done-line.is-started { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.done-line.is-started .check { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-size: .9rem; }
+.done-line.is-started .sum { color: var(--accent); }
+.done-line { margin: 8px 0; }
