@@ -212,8 +212,11 @@ function viewActive() {
     </div>
     ${sessionProgress(d)}
     ${(() => {
-      const cur = currentExId(d);
-      return d.exercises.map((e, i) => (e.id === cur ? exCard(e, d) : exDone(e) ? exCollapsed(e) : exPending(e, i))).join('');
+      const cur = currentItemId(d);
+      return sessionItems(d).map((it) => {
+        if (it.kind === 'warm') return it.id === cur ? warmCard(it) : warmLine(it);
+        return it.id === cur ? exCard(it.ex, d) : exDone(it.ex) ? exCollapsed(it.ex) : exPending(it.ex, it.i);
+      }).join('');
     })()}
     ${d.exercises.length && d.exercises.every(exDone) ? '<p class="complete">Treino completo! Toque em Finalizar para salvar.</p>' : ''}
     <button class="btn primary big" data-act="finish">Finalizar treino</button>`;
@@ -233,12 +236,92 @@ function sessionProgress(d) {
   </div>`;
 }
 
-// Só um exercício fica aberto: o escolhido (ui.current) ou, se nenhum foi escolhido, o primeiro que falta.
+// Itens do treino em ordem: o aquecimento (quando o exercício tem) vem como item próprio antes dele.
+const WARM = 'w:';
+function sessionItems(d) {
+  const out = [];
+  d.exercises.forEach((e, i) => {
+    if (!state.active.deload && L.isWarmupEx(d, e)) out.push({ kind: 'warm', id: WARM + e.id, ex: e, i });
+    out.push({ kind: 'ex', id: e.id, ex: e, i });
+  });
+  return out;
+}
+const warmCount = (ex) => (state.active.warmDone?.[ex.id] ?? []).filter(Boolean).length;
+const warmSkipped = (ex) => !!state.active.warmSkip?.[ex.id];
+// Aquecimento conta como resolvido quando as 4 séries foram feitas, quando foi pulado
+// ou quando o exercício já começou.
+function itemDone(it) {
+  if (it.kind === 'ex') return exDone(it.ex);
+  return warmCount(it.ex) >= 4 || warmSkipped(it.ex) || exSetsDone(it.ex).length > 0;
+}
+
+// Só um item fica aberto: o escolhido (ui.current) ou, se nenhum foi escolhido, o primeiro que falta.
 // ui.current === 'none' significa que o usuário recolheu tudo.
-function currentExId(d) {
+function currentItemId(d) {
   if (ui.current === 'none') return null;
-  if (ui.current && d.exercises.some((e) => e.id === ui.current)) return ui.current;
-  return d.exercises.find((e) => !exDone(e))?.id ?? null;
+  const items = sessionItems(d);
+  if (ui.current && items.some((it) => it.id === ui.current)) return ui.current;
+  return items.find((it) => !itemDone(it))?.id ?? null;
+}
+
+// Próximo item depois de terminar um: primeiro um exercício que ficou pela metade, senão o próximo que falta.
+function nextItemAfter(d, id) {
+  const items = sessionItems(d);
+  const pos = items.findIndex((it) => it.id === id);
+  const order = [...items.slice(pos + 1), ...items.slice(0, Math.max(0, pos))];
+  return order.find((it) => it.kind === 'ex' && !itemDone(it) && exSetsDone(it.ex).length > 0)
+    ?? order.find((it) => !itemDone(it)) ?? null;
+}
+
+function goToItem(id) {
+  setTimeout(() => {
+    if (!state.active) return;
+    const el = id ? document.getElementById(`ex-${id}`) : $('.complete');
+    el?.scrollIntoView({ behavior: smoothScroll(), block: id ? 'start' : 'center' });
+    el?.querySelector?.('[data-draft="r"]')?.focus({ preventScroll: true });
+  }, 450);
+}
+
+function warmCard(it) {
+  const ex = it.ex;
+  const sets = exSetsDone(ex);
+  const { work } = exWork(ex);
+  const draft = ui.drafts[ex.id] ?? {};
+  const wValue = draft.w ?? (work.next ?? '');
+  return `<section class="card is-current warm-card" id="ex-${esc(it.id)}">
+    <div class="ex-head">
+      <div><h3>Aquecimento</h3><p class="small muted">antes de ${esc(ex.name)}</p></div>
+      <div class="ex-head-r">
+        <span class="chip">4 séries leves</span>
+        <button type="button" class="btn small" data-act="ex-collapse" data-ex="${esc(it.id)}">Recolher ▴</button>
+      </div>
+    </div>
+    ${sets.length
+      ? `<p class="small muted">Calculado com a 1ª série feita: <b>${kg(sets[0].weight)} kg</b></p>`
+      : `<label class="field warm-base">Carga da 1ª série de ${esc(ex.name)} (kg)
+          <input inputmode="decimal" data-draft="w" data-ex="${esc(ex.id)}" value="${esc(wValue === '' ? '' : String(wValue).replace('.', ','))}" placeholder="kg"></label>`}
+    <div id="warm-${esc(ex.id)}">${warmList(ex, warmBaseFor(ex, sets, work))}</div>
+    <div class="row end"><button type="button" class="btn ghost small" data-act="warm-skip" data-ex="${esc(ex.id)}">Pular aquecimento</button></div>
+  </section>`;
+}
+
+function warmLine(it) {
+  const ex = it.ex;
+  const n = warmCount(ex);
+  const done = itemDone(it);
+  const full = n >= 4;
+  const cls = full ? 'is-done' : done ? 'is-skipped' : n ? 'is-started' : 'is-pending';
+  const sum = full ? '4 de 4 séries feitas'
+    : warmSkipped(ex) ? 'pulado'
+    : done ? 'não feito'
+    : n ? `${n} de 4 feitas` : '4 séries leves';
+  return `<button type="button" class="done-line warm-line ${cls}${ui.flash === it.id ? ' flash' : ''}" id="ex-${esc(it.id)}" data-act="ex-expand" data-ex="${esc(it.id)}" aria-label="Aquecimento de ${esc(ex.name)}: ${sum}. Toque para abrir">
+    <span class="check" aria-hidden="true">${full ? '✓' : '↗'}</span>
+    <span class="name">Aquecimento</span>
+    <span></span>
+    <span class="sum">${sum} · antes de ${esc(ex.name)}</span>
+    <span class="chev" aria-hidden="true">▾</span>
+  </button>`;
 }
 
 function exWork(ex) {
@@ -299,7 +382,7 @@ function warmBaseFor(ex, sets, work) {
 
 function warmList(ex, base) {
   if (!(base > 0)) {
-    return `<p class="small muted warm-empty">Digite a carga da 1ª série no campo <b>kg</b> abaixo e o aquecimento é calculado na hora.</p>`;
+    return `<p class="small muted warm-empty">Digite acima a carga da 1ª série e o aquecimento é calculado na hora.</p>`;
   }
   const ws = L.warmupSets(base, ex, state.settings);
   const done = state.active?.warmDone?.[ex.id] ?? [];
@@ -341,17 +424,6 @@ function exCard(ex, day) {
       ${howtoOpen ? `<div class="howto" data-fig="${esc(fk)}"></div>` : ''}`
     : '';
 
-  // aquecimento antes da primeira série pesada
-  let warm = '';
-  if (!deload && L.isWarmupEx(day, ex)) {
-    const open = ui.warm[ex.id] ?? sets.length === 0;
-    const doneN = (a.warmDone?.[ex.id] ?? []).filter(Boolean).length;
-    warm = `<button type="button" class="howto-btn" data-act="warm" data-ex="${esc(ex.id)}" aria-expanded="${open}">
-        <span>Aquecimento${doneN ? ` · ${doneN} de 4 feitas` : ' · 4 séries'}</span><span class="chev" aria-hidden="true">▾</span>
-      </button>
-      ${open ? `<div id="warm-${esc(ex.id)}">${warmList(ex, warmBaseFor(ex, sets, work))}</div>` : ''}`;
-  }
-
   let advice = '';
   if (!deload && sets.length) {
     const r = work.results.at(-1);
@@ -381,7 +453,6 @@ function exCard(ex, day) {
     <p class="target">${target}</p>
     ${plates ? `<p class="plates">${plates}</p>` : ''}
     ${howto}
-    ${warm}
     ${prev ? `<p class="prev muted small">Última vez (${fmtDate(prev.date)}): ${prev.sets.map((x) => `${kg(x.weight)}×${x.reps}`).join(' · ')}</p>` : ''}
     ${prevNotes.length ? `<p class="prev small note-prev">📝 ${prevNotes.map((x) => esc(x.note)).join(' · ')}</p>` : ''}
     ${!deload && (start?.stall ?? 0) >= L.STALL_LIMIT ? `<p class="warn">⚠ ${start.stall} treinos sem subir carga. Considere um deload ou trocar a variação do exercício.</p>` : ''}
@@ -1209,24 +1280,13 @@ const actions = {
     let next = null;
     if (justFinished) {
       // terminou o exercício: fica verde e fechado, e o próximo que falta abre
-      const list = found.day.exercises;
-      const pos = list.findIndex((e) => e.id === exId);
-      const order = [...list.slice(pos + 1), ...list.slice(0, pos)];
-      // volta primeiro para um exercício que ficou pela metade; senão, o próximo da lista
-      next = order.find((e) => !exDone(e) && exSetsDone(e).length > 0) ?? order.find((e) => !exDone(e)) ?? null;
+      next = nextItemAfter(found.day, exId);
       ui.current = next ? next.id : 'none';
       ui.flash = exId;
     }
     render();
     ui.flash = null;
-    if (justFinished) {
-      setTimeout(() => {
-        if (!state.active) return;
-        const target = next ? document.getElementById(`ex-${next.id}`) : $('.complete');
-        target?.scrollIntoView({ behavior: smoothScroll(), block: next ? 'start' : 'center' });
-        if (next) $(`#ex-${next.id} [data-draft="r"]`)?.focus({ preventScroll: true });
-      }, 450);
-    }
+    if (justFinished) goToItem(next?.id ?? null);
   },
 
   'home-day'(el) {
@@ -1272,13 +1332,6 @@ const actions = {
     render();
   },
 
-  warm(el) {
-    const id = el.dataset.ex;
-    const sets = state.active.sets.filter((x) => x.exId === id).length;
-    ui.warm[id] = !(ui.warm[id] ?? sets === 0);
-    render();
-  },
-
   'warm-done'(el) {
     unlockAudio();
     const a = state.active;
@@ -1296,7 +1349,27 @@ const actions = {
       navigator.vibrate?.(30);
     }
     save();
+    if (arr[i] && warmCount(findEx(id).ex) >= 4) {
+      // aquecimento completo: fica verde e o exercício abre
+      ui.current = id;
+      ui.flash = WARM + id;
+      render();
+      ui.flash = null;
+      goToItem(id);
+      return;
+    }
     render();
+  },
+
+  'warm-skip'(el) {
+    const id = el.dataset.ex;
+    const a = state.active;
+    a.warmSkip ??= {};
+    a.warmSkip[id] = true;
+    ui.current = id;
+    save();
+    render();
+    goToItem(id);
   },
 
   note(el) {
@@ -1680,8 +1753,10 @@ document.addEventListener('keydown', (ev) => {
   }
   if (ev.key !== 'Enter' || !ev.target.dataset?.draft) return;
   ev.preventDefault();
-  if (ev.target.dataset.draft === 'w') ev.target.closest('.logrow').querySelector('[data-draft="r"]').focus();
-  else ev.target.closest('.logrow').querySelector('[data-act="log"]').click();
+  const row = ev.target.closest('.logrow');
+  if (!row) return ev.target.blur();
+  if (ev.target.dataset.draft === 'w') row.querySelector('[data-draft="r"]').focus();
+  else row.querySelector('[data-act="log"]').click();
 });
 
 document.addEventListener('change', async (ev) => {

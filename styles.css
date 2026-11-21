@@ -618,3 +618,12 @@ body.on-home .top { display: none; }
 .meter i { width: 7px; height: 14px; border-radius: 3px; background: var(--card-2); }
 .meter i.on { background: var(--info); }
 .home .banner { margin: 0; }
+
+/* aquecimento como item próprio do treino */
+.warm-card .ex-head h3 { font-size: 1.1rem; }
+.warm-card .ex-head p { margin: 2px 0 0; }
+.warm-card .warm-base { margin: 4px 0 8px; }
+.warm-card ul.warm { margin-top: 4px; }
+.done-line.is-skipped { opacity: .7; }
+.done-line.is-skipped .check { background: var(--card-2); color: var(--muted); }
+.warm-line .check { font-size: .95rem; }
