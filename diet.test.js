@@ -78,3 +78,20 @@ test('sugestões realistas: não manda quadruplicar o whey e avisa quando falta 
   assert.equal(s.find((x) => x.foodId === 'frango').deltaG, 150);
   assert.ok(s.some((x) => x.hint === 'pouco'));
 });
+
+test('cardápio de exemplo bate a meta em calorias e proteína', async () => {
+  const { FOODS } = await import('./foods.js');
+  const byId = (id) => FOODS.find((f) => f.id === id);
+  for (const goal of [
+    { kcal: 2000, p: 160, c: 200, f: 44 },
+    { kcal: 2800, p: 175, c: 385, f: 62 },
+    { kcal: 3400, p: 190, c: 470, f: 75 },
+  ]) {
+    const menu = D.buildSampleMenu(goal, byId);
+    const t = D.menuTotals(menu, byId);
+    assert.equal(menu.meals.length, 4);
+    assert.ok(Math.abs(t.kcal - goal.kcal) <= goal.kcal * 0.06, `kcal ${Math.round(t.kcal)} vs ${goal.kcal}`);
+    assert.ok(t.p >= goal.p * 0.93, `prot ${Math.round(t.p)} vs ${goal.p}`);
+    assert.ok(menu.meals.every((m) => m.items.every((it) => it.g > 0 && it.g % 5 === 0)));
+  }
+});

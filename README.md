@@ -28,7 +28,7 @@ A carga com que você termina um exercício vira a carga sugerida no próximo tr
 - **Anotações por série** (ex.: "dor no ombro"), mostradas de novo no próximo treino do exercício
 - **Semana de deload**: ao iniciar, as cargas aparecem a ~60% e os treinos não mexem na progressão
 - **Dieta → Meta e peso**: escolha a fase (**Crescer**, **Secar** ou **Manter**) e o app mostra a meta de calorias e macros do dia. Com o peso registrado, ele diz se você deve comer mais, menos ou continuar igual, e aplica o ajuste na meta com um toque. Também avisa quando trocar de fase pelo % de gordura (~17% para secar, ~10% para voltar a crescer)
-- **Dieta → Cardápio**: monte as refeições uma vez com alimentos da Tabela TACO (ou cadastrados pelo rótulo). Barras mostram o total contra a meta e o app sugere ajustes realistas (proteína primeiro, depois calorias pelo carboidrato) que você aplica com um toque
+- **Dieta → Cardápio**: monte as refeições uma vez com alimentos da Tabela TACO (ou cadastrados pelo rótulo). Barras mostram o total contra a meta e o app sugere ajustes realistas (proteína primeiro, depois calorias pelo carboidrato) que você aplica com um toque. O botão **Montar cardápio de exemplo** monta 4 refeições com alimentos comuns já nas quantidades da sua meta, como ponto de partida
 - **Dieta → Hoje**: marque "Comi" em cada refeição, registre trocas ("Comi diferente") e extras, e veja se o dia ficou dentro da meta
 - Histórico com gráfico da carga e do 1RM estimado por exercício
 - Aviso de deload a cada 8 semanas (configurável)

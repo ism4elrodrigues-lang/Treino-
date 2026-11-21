@@ -707,11 +707,18 @@ function viewCardapio() {
   const goal = dietGoal();
   const menu = state.diet.menu;
   const tot = D.menuTotals(menu, foodById);
-  return `${goal ? `<section class="card">
+  const empty = !menu.meals.some((m) => m.items.length);
+  const sampleBox = goal && empty ? `<section class="card sample">
+      <h3>Começar com um cardápio de exemplo?</h3>
+      <p class="small muted">O app monta café da manhã, almoço, lanche e jantar com alimentos comuns (pão, ovos, frango, arroz, feijão, patinho, batata doce, frutas e salada), já nas quantidades da sua meta de ${g0(goal.kcal)} kcal e ${g0(goal.p)} g de proteína. Depois é só trocar o que não gostar.</p>
+      <button class="btn primary" data-act="menu-sample">Montar cardápio de exemplo</button>
+      <p class="small muted">Ou monte do zero com "+ Alimento" em cada refeição abaixo.</p>
+    </section>` : '';
+  return `${sampleBox}${goal ? (empty ? '' : `<section class="card">
         <h3>Total do cardápio × meta</h3>
         ${macroBars(tot, goal, 'cardapio')}
       </section>
-      ${suggestionBox(goal)}` : noGoalBox()}
+      ${suggestionBox(goal)}`) : noGoalBox()}
     ${menu.meals.map((m) => {
       const mt = D.mealTotals(m, foodById);
       const hasProt = m.items.some((it) => (foodById(it.foodId)?.p ?? 0) >= 10);
@@ -744,6 +751,7 @@ function viewCardapio() {
       </section>`;
     }).join('')}
     <button class="btn" data-act="meal-add">+ Refeição</button>
+    ${goal && !empty ? '<button class="btn ghost small" style="margin-left:8px" data-act="menu-sample">Trocar pelo cardápio de exemplo</button>' : ''}
     <p class="small muted" style="margin-top:14px">Valores por 100 g da Tabela TACO (NEPA/Unicamp, 4ª ed.). São médias: marcas e preparos variam um pouco.</p>`;
 }
 
@@ -805,6 +813,18 @@ const dietActions = {
   'diet-tab'(el) { ui.dietTab = el.dataset.t; ui.addTo = null; render(); window.scrollTo(0, 0); },
   'food-open'(el) { ui.addTo = el.dataset.meal; ui.newFood = null; ui.q = ''; render(); $('#food-q')?.focus(); },
   'food-close'() { ui.addTo = null; render(); },
+  'menu-sample'() {
+    const goal = dietGoal();
+    if (!goal) return;
+    const hasItems = state.diet.menu.meals.some((m) => m.items.length);
+    if (hasItems && !confirm('Substituir o seu cardápio atual pelo cardápio de exemplo?')) return;
+    state.diet.menu = D.buildSampleMenu(goal, foodById);
+    ui.addTo = null;
+    save();
+    toast('Cardápio de exemplo montado. Troque à vontade o que não gostar.');
+    render();
+    window.scrollTo(0, 0);
+  },
   'food-new'(el) { ui.newFood = el.dataset.meal; render(); $('#nf-name')?.focus(); },
   'food-new-cancel'() { ui.newFood = null; render(); },
   'food-add'(el) {

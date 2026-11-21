@@ -187,3 +187,47 @@ export function per100FromLabel({ portion, kcal, p, c, f }) {
   const k = 100 / portion;
   return { kcal: round1(kcal * k), p: round1(p * k), c: round1(c * k), f: round1(f * k) };
 }
+
+// ---------- cardápio de exemplo ----------
+
+// Modelo com alimentos comuns da TACO. role: p = fonte de proteína (escala pela proteína),
+// c = fonte de carboidrato (completa as calorias), f = gordura de adição, x = fixo (fruta, salada, iogurte).
+const SAMPLE = [
+  { id: 'm_cafe', name: 'Café da manhã', items: [['taco:53', 50, 'c'], ['taco:488', 100, 'p'], ['taco:182', 100, 'x']] },
+  { id: 'm_almoco', name: 'Almoço', items: [['taco:3', 150, 'c'], ['taco:561', 100, 'x'], ['taco:410', 120, 'p'], ['taco:100', 80, 'x'], ['taco:260', 5, 'f']] },
+  { id: 'm_lanche', name: 'Lanche', items: [['taco:448', 170, 'x'], ['taco:7', 30, 'c'], ['taco:179', 100, 'x']] },
+  { id: 'm_jantar', name: 'Jantar', items: [['taco:377', 120, 'p'], ['taco:88', 150, 'c'], ['taco:78', 40, 'x'], ['taco:157', 80, 'x'], ['taco:260', 5, 'f']] },
+];
+
+const roundTo = (x, step) => Math.max(step, Math.round(x / step) * step);
+
+// Monta o cardápio de exemplo ajustado à meta: proteína → gordura → carboidrato completa as calorias.
+export function buildSampleMenu(goal, foodById) {
+  const items = SAMPLE.flatMap((m) => m.items.map(([foodId, g, role]) => ({ meal: m.id, foodId, g, role, food: foodById(foodId) })));
+  if (items.some((x) => !x.food)) throw new Error('Alimento do modelo não encontrado.');
+  const sum = (list, k) => list.reduce((t, x) => t + foodMacros(x.food, x.g)[k], 0);
+  const by = (role) => items.filter((x) => x.role === role);
+
+  // 1) proteína
+  const pFromOthers = sum(items.filter((x) => x.role !== 'p'), 'p');
+  const pFactor = Math.min(3, Math.max(0.5, (goal.p - pFromOthers) / sum(by('p'), 'p')));
+  for (const x of by('p')) x.g = roundTo(x.g * pFactor, 10);
+
+  // 2) gordura: azeite completa o que falta (até 20 g por refeição)
+  const fNeed = goal.f - sum(items.filter((x) => x.role !== 'f'), 'f');
+  const fats = by('f');
+  for (const x of fats) x.g = Math.min(20, roundTo(Math.max(0, fNeed) / fats.length, 5));
+
+  // 3) carboidrato completa as calorias
+  const kNeed = goal.kcal - sum(items.filter((x) => x.role !== 'c'), 'kcal');
+  const cFactor = Math.min(4, Math.max(0.3, kNeed / sum(by('c'), 'kcal')));
+  for (const x of by('c')) x.g = roundTo(x.g * cFactor, 10);
+
+  return {
+    meals: SAMPLE.map((m) => ({
+      id: m.id,
+      name: m.name,
+      items: items.filter((x) => x.meal === m.id).map((x) => ({ foodId: x.foodId, g: x.g })),
+    })),
+  };
+}
