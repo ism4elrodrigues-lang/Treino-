@@ -142,3 +142,38 @@ test('fases: troca pelo % de gordura', () => {
   assert.deepEqual(L.phaseBfAlert('secar', 10, 'M'), { to: 'crescer', limit: 10 });
   assert.equal(L.phaseBfAlert('crescer', 13, 'M'), null);
 });
+
+test('tela inicial: semanas seguidas', () => {
+  const ses = (...dates) => dates.map((date) => ({ date, sets: [] }));
+  const now = new Date(2026, 10, 21); // sábado
+  assert.equal(L.weekStreak(ses('2026-11-19', '2026-11-12', '2026-11-03', '2026-10-27'), now), 4);
+  assert.equal(L.weekStreak(ses('2026-11-12', '2026-11-03'), now), 2); // semana atual ainda sem treino
+  assert.equal(L.weekStreak(ses('2026-11-19', '2026-10-27'), now), 1);
+  assert.equal(L.weekStreak([], now), 0);
+});
+
+test('tela inicial: grade da semana e rodada', () => {
+  const now = new Date(2026, 10, 21);
+  const plan = L.defaultPlan();
+  const sessions = [
+    { date: '2026-11-13', dayId: 'd_bracos', sets: [] },
+    { date: '2026-11-16', dayId: 'd_peito', sets: [] },
+    { date: '2026-11-17', dayId: 'd_costas', sets: [] },
+    { date: '2026-11-19', dayId: 'd_ombros', sets: [] },
+  ];
+  const g = L.weekGrid(sessions, plan, now);
+  assert.equal(g[0].date, '2026-11-16');
+  assert.equal(g[5].today, true);
+  assert.equal(g.filter((d) => d.sessions.length).length, 3);
+  assert.deepEqual([...L.roundDone(plan, sessions)], ['d_peito', 'd_costas', 'd_ombros']);
+  assert.equal(L.roundDone(plan, sessions.slice(0, 1)).size, 0); // depois de Braços começa rodada nova
+});
+
+test('tela inicial: destaques do treino', () => {
+  const sessions = [
+    { date: '2026-11-10', sets: [{ exId: 'a', weight: 80, reps: 6 }, { exId: 'b', weight: 50, reps: 6 }] },
+    { date: '2026-11-17', sets: [{ exId: 'a', weight: 85, reps: 5 }, { exId: 'b', weight: 50, reps: 4 }] },
+  ];
+  assert.deepEqual(L.sessionHighlights(sessions, 1), { ups: 1, records: 1, sets: 2 });
+  assert.deepEqual(L.sessionHighlights(sessions, 0), { ups: 0, records: 0, sets: 2 });
+});

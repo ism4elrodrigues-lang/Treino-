@@ -118,6 +118,7 @@ export const FIGS = {
   },
   terra: {
     name: 'Levantamento terra',
+    icon: 0, // no ícone, mostra a barra no chão
     musc: 'Posterior de coxa, glúteos, lombar e costas',
     phases: ['Barra no chão', 'Em pé'],
     weights: PLATE,
@@ -482,4 +483,32 @@ export function mountHowto(container, key) {
   }
   txt.append(musc, ol);
   container.appendChild(txt);
+}
+
+// Desenho parado (sem animação) para ícones, como o cartão da tela inicial.
+export function figureSVG(key) {
+  const def = FIGS[key];
+  if (!def) return '';
+  const k = def.icon ?? 1;
+  const B = { ...def.A, ...def.B };
+  const P = {};
+  for (const j in B) {
+    const a = def.A[j] ?? B[j];
+    P[j] = [a[0] + (B[j][0] - a[0]) * k, a[1] + (B[j][1] - a[1]) * k];
+  }
+  const parts = def.view === 'front' ? FRONT_PARTS : SIDE_PARTS;
+  const props = (def.props || []).map((p) => {
+    if (p.t === 'rect') return `<rect class="fig-prop" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="2"/>`;
+    if (p.t === 'circle') return `<circle class="fig-prop" cx="${p.cx}" cy="${p.cy}" r="${p.r}"/>`;
+    return `<polyline class="fig-prop-line" stroke-width="${p.w}" points="${p.pts.map(pt).join(' ')}"/>`;
+  }).join('');
+  const weights = (def.weights || []).filter((w) => w.type === 'plate' || w.type === 'db').map((w) => {
+    const at = P[w.at];
+    return `<circle class="fig-plate" cx="${(at[0] + (w.dx ?? 0)).toFixed(1)}" cy="${(at[1] + (w.dy ?? 0)).toFixed(1)}" r="${w.type === 'db' ? 7 : w.r ?? 13}"/>`;
+  }).join('');
+  return `<svg viewBox="20 -20 160 180" aria-hidden="true" class="fig-icon">
+    <line class="fig-floor" x1="24" y1="151" x2="176" y2="151"/>${props}${weights}
+    ${parts.map((p) => `<polyline class="fig-limb${p.thin ? ' thin' : ''}" points="${p.pts.map((n) => pt(P[n])).join(' ')}"/>`).join('')}
+    <circle class="fig-head" cx="${P.head[0].toFixed(1)}" cy="${P.head[1].toFixed(1)}" r="9"/>
+  </svg>`;
 }

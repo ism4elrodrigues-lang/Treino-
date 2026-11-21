@@ -398,3 +398,66 @@ export function calories(profile, weightKg) {
     fat: Math.round((target * f) / 100 / 9),
   };
 }
+
+// ---------- tela inicial ----------
+
+// Segunda-feira da semana de uma data (semana de seg a dom).
+export function weekStart(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+
+// Semanas seguidas com pelo menos um treino. A semana atual só conta se já tiver treino;
+// sem treino ainda, a sequência vem da semana passada para trás.
+export function weekStreak(sessions, now) {
+  const weeks = new Set(sessions.map((s) => isoDate(weekStart(parseIsoDate(s.date)))));
+  let w = weekStart(now);
+  if (!weeks.has(isoDate(w))) w.setDate(w.getDate() - 7);
+  let n = 0;
+  while (weeks.has(isoDate(w))) {
+    n++;
+    w.setDate(w.getDate() - 7);
+  }
+  return n;
+}
+
+// Os 7 dias da semana atual com o(s) treino(s) feito(s) em cada um.
+export function weekGrid(sessions, plan, now) {
+  const start = weekStart(now);
+  const today = isoDate(now);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const iso = isoDate(d);
+    const done = sessions.filter((s) => s.date === iso);
+    return { date: iso, today: iso === today, future: iso > today, sessions: done };
+  });
+}
+
+// Dias do plano já feitos na rodada atual (desde a última vez que o 1º dia foi treinado).
+export function roundDone(plan, sessions) {
+  const first = plan.days[0]?.id;
+  if (!first || nextDayId(plan, sessions) === first) return new Set();
+  let i = sessions.length - 1;
+  while (i >= 0 && sessions[i].dayId !== first) i--;
+  return new Set(sessions.slice(Math.max(0, i)).map((s) => s.dayId));
+}
+
+// Destaques de um treino: exercícios com carga maior que no treino anterior e recordes de 1RM estimado.
+export function sessionHighlights(sessions, index) {
+  const s = sessions[index];
+  const before = sessions.slice(0, index).filter((x) => !x.deload);
+  let ups = 0;
+  let records = 0;
+  for (const exId of new Set(s.sets.map((x) => x.exId))) {
+    const mine = s.sets.filter((x) => x.exId === exId);
+    const top = Math.max(...mine.map((x) => x.weight));
+    const best = Math.max(...mine.map((x) => e1rm(x.weight, x.reps)));
+    const prev = lastSetsFor(before, exId);
+    if (prev && top > Math.max(...prev.sets.map((x) => x.weight))) ups++;
+    const hist = before.flatMap((x) => x.sets.filter((y) => y.exId === exId));
+    if (hist.length && best > Math.max(...hist.map((y) => e1rm(y.weight, y.reps)))) records++;
+  }
+  return { ups, records, sets: s.sets.length };
+}

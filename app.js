@@ -1,5 +1,5 @@
 import * as L from './logic.js';
-import { FIGS, mountHowto } from './figures.js';
+import { FIGS, mountHowto, figureSVG } from './figures.js';
 import * as D from './diet.js';
 import { FOODS } from './foods.js';
 
@@ -81,6 +81,7 @@ function render() {
   const view = $('#view');
   const views = { treino: viewTreino, historico: viewHistorico, corpo: viewCorpo, plano: viewPlano, config: viewConfig };
   view.innerHTML = views[ui.tab]();
+  document.body.classList.toggle('on-home', ui.tab === 'treino' && !state.active);
   view.querySelectorAll('[data-fig]').forEach((el) => mountHowto(el, el.dataset.fig));
 }
 
@@ -88,21 +89,113 @@ function viewTreino() {
   if (state.active) return viewActive();
   const days = state.plan.days;
   if (!days.length) return `<div class="empty">Nenhum dia no plano.<br><br><button class="btn" data-goto="plano">Montar o plano</button></div>`;
+  const now = new Date();
   const nextId = L.nextDayId(state.plan, state.sessions);
-  const next = dayById(nextId);
-  const last = state.sessions.at(-1);
-  return `${deloadBanner()}
-    <section class="card hero">
-      <p class="muted small">Próximo treino</p>
-      <h2>${esc(next.name)}</h2>
-      <p class="muted small">${next.exercises.map((e) => esc(e.name)).join(' · ') || 'Sem exercícios'}</p>
-      <button class="btn primary big" data-act="start" data-day="${next.id}">Começar treino</button>
-    </section>
-    <h3 class="section">Ou escolha outro dia</h3>
-    <div class="daylist">
-      ${days.map((d) => `<button class="btn" data-act="start" data-day="${d.id}">${esc(d.name)}</button>`).join('')}
+  const selId = ui.homeDay && dayById(ui.homeDay) ? ui.homeDay : nextId;
+  const d = dayById(selId);
+  const di = days.indexOf(d);
+  const hour = now.getHours();
+  const hello = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  const streak = L.weekStreak(state.sessions, now);
+  const s = state.settings;
+  const deloadOn = !!state.deload;
+
+  // cartão do treino escolhido
+  const totalSets = d.exercises.reduce((t, e) => t + e.sets, 0);
+  const minutes = Math.max(10, Math.round((totalSets * (s.restSec + 45) / 60 + 5) / 5) * 5);
+  const rows = d.exercises.map((e) => {
+    const w = state.prog[e.id]?.weight ?? null;
+    const shown = deloadOn ? L.deloadWeight(w, e, s) : w;
+    const prev = L.lastSetsFor(heavy(), e.id);
+    const up = !deloadOn && w != null && prev && w > prev.sets[0].weight;
+    const load = shown != null ? `${kg(shown)} kg` : `<span class="muted">${e.equip === 'corporal' ? 'peso corporal' : 'a definir'}</span>`;
+    return { e, up, load };
+  });
+  const ups = rows.filter((r) => r.up).length;
+  const figEx = d.exercises.find((e) => figKey(e));
+  const hero = `<section class="card home-hero">
+    <div class="hh-top">
+      <div class="hh-txt">
+        <p class="eyebrow">${selId === nextId ? 'Treino de hoje' : 'Treino escolhido'} · dia ${di + 1} de ${days.length}${deloadOn ? ' · deload' : ''}</p>
+        <h2>${esc(d.name)}</h2>
+        <p class="hh-meta"><span>${d.exercises.length} exercício${d.exercises.length === 1 ? '' : 's'}</span><span>${totalSets} séries</span><span>~${minutes} min</span></p>
+      </div>
+      ${figEx ? `<div class="hh-fig">${figureSVG(figKey(figEx))}</div>` : ''}
     </div>
-    ${last ? `<p class="muted small" style="margin-top:18px">Último treino: <b>${esc(last.dayName)}</b> em ${fmtDateLong(last.date)}</p>` : ''}`;
+    ${rows.length ? `<ul class="hh-list">${rows.map(({ e, up, load }) => `<li><span class="nm">${esc(e.name)}</span><span class="ld">${load}${up ? '<span class="up" title="Carga maior que da última vez">▲</span>' : ''}</span></li>`).join('')}</ul>` : '<p class="small muted hh-empty">Sem exercícios neste dia. Adicione no Plano.</p>'}
+    <div class="hh-cta">
+      <button class="btn primary big" data-act="start" data-day="${d.id}">Começar treino</button>
+      ${ups ? `<p class="small muted"><span class="upmark">▲</span> ${ups} exercício${ups > 1 ? 's' : ''} com carga maior que da última vez</p>` : ''}
+    </div>
+  </section>`;
+
+  // sequência dos dias
+  const done = L.roundDone(state.plan, state.sessions);
+  const seq = `<section class="card home-seq">
+    <div class="hs-top"><b>Sequência</b><span class="small muted">toque para trocar o treino</span></div>
+    <div class="chips">${days.map((x, i) => {
+      const cls = x.id === selId ? 'sel' : done.has(x.id) ? 'done' : '';
+      return `<button type="button" class="chip ${cls}" data-act="home-day" data-day="${x.id}" aria-pressed="${x.id === selId}"><span class="n">${i + 1}</span>${esc(x.name)}${done.has(x.id) && x.id !== selId ? ' ✓' : ''}</button>`;
+    }).join('')}</div>
+  </section>`;
+
+  // semana
+  const grid = L.weekGrid(state.sessions, state.plan, now);
+  const weekCount = grid.reduce((t, g) => t + g.sessions.length, 0);
+  const wd = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+  const week = `<section class="card home-week">
+    <div class="hs-top"><b>Esta semana</b><span class="small muted"><b class="num">${weekCount}</b> de ${days.length} treinos</span></div>
+    <div class="wdays">${grid.map((g, i) => {
+      const label = g.sessions.map((x) => (x.dayName || '?').slice(0, 1).toUpperCase()).join('');
+      return `<div class="wday${g.sessions.length ? ' done' : ''}${g.today ? ' today' : ''}" title="${g.sessions.map((x) => esc(x.dayName)).join(', ')}">
+        <span class="wd">${wd[i]}</span><span class="cell">${label || (g.today ? '•' : '')}</span></div>`;
+    }).join('')}</div>
+  </section>`;
+
+  // peso
+  const tr = L.weightTrend(state.body, now);
+  const lastKg = state.body.at(-1)?.kg;
+  let weight;
+  if (lastKg == null) {
+    weight = `<button type="button" class="card home-tile" data-act="home-peso"><span class="lbl">Peso</span><span class="small muted">Registre seu peso na aba Dieta para acompanhar o ritmo.</span></button>`;
+  } else {
+    const ref = tr.last ?? lastKg;
+    const adv = L.phaseAdvice(state.profile.phase || 'crescer', tr.rate, ref, s);
+    const pill = !adv ? '' : adv.level === 'ok' ? '<span class="pill ok">✓ no ritmo</span>' : adv.level === 'comer-mais' ? '<span class="pill up">↑ coma um pouco mais</span>' : '<span class="pill down">↓ coma um pouco menos</span>';
+    weight = `<button type="button" class="card home-tile" data-act="home-peso" aria-label="Abrir peso e meta">
+      <span class="lbl">Peso${tr.last != null ? ' · média de 7 dias' : ''}</span>
+      <span class="ht-row"><span class="big num">${kg(Math.round(ref * 10) / 10)} <small>kg</small></span>
+      ${tr.rate != null ? `<span class="small muted">${tr.rate >= 0 ? '+' : '−'}${kg(Math.round(Math.abs(tr.rate) * 10) / 10)} kg na semana</span>` : ''}${pill}</span>
+    </button>`;
+  }
+
+  // último treino
+  const li = state.sessions.length - 1;
+  let lastCard = '';
+  if (li >= 0) {
+    const ls = state.sessions[li];
+    const h = L.sessionHighlights(state.sessions, li);
+    lastCard = `<section class="card home-last">
+      <span class="ic">✓</span>
+      <div><p><b>Último treino: ${esc(ls.dayName)}</b> <span class="small muted">· ${L.parseIsoDate(ls.date).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })}</span></p>
+      <div class="tags">${ls.deload ? '<span class="tag">deload</span>' : ''}${h.ups ? `<span class="tag ok">▲ ${h.ups} carga${h.ups > 1 ? 's' : ''} subi${h.ups > 1 ? 'ram' : 'u'}</span>` : ''}${h.records ? `<span class="tag acc">${h.records} recorde${h.records > 1 ? 's' : ''}</span>` : ''}<span class="tag">${h.sets} séries</span></div></div>
+    </section>`;
+  }
+
+  // deload: banner quando está na hora, senão uma linha discreta
+  const st = L.deloadStatus(state.cycleStart, now, s.deloadWeeks);
+  const banner = deloadBanner();
+  const left = Math.max(1, s.deloadWeeks - st.weeks);
+  const deload = banner || `<div class="home-deload"><span>Próximo deload em <b>${left} semana${left > 1 ? 's' : ''}</b></span>
+    <span class="meter" aria-label="${st.weeks} de ${s.deloadWeeks} semanas do ciclo">${Array.from({ length: s.deloadWeeks }, (_, i) => `<i class="${i < st.weeks ? 'on' : ''}"></i>`).join('')}</span></div>`;
+
+  return `<div class="home">
+    <div class="greet"><div><p class="small muted">${now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${hello}</h1></div>
+      ${streak >= 2 ? `<span class="streak">${streak} semanas seguidas</span>` : ''}</div>
+    ${banner && (state.deload || st.level !== 'proximo') ? banner : ''}
+    ${hero}${seq}${week}${weight}${lastCard}
+    ${banner && (state.deload || st.level !== 'proximo') ? '' : deload}
+  </div>`;
 }
 
 function viewActive() {
@@ -1083,6 +1176,7 @@ const actions = {
     if (!d) return;
     const startProg = {};
     for (const e of d.exercises) if (state.prog[e.id]) startProg[e.id] = { ...state.prog[e.id] };
+    ui.homeDay = null;
     state.active = { id: L.uid('s'), dayId: d.id, date: L.isoDate(new Date()), startProg, sets: [], deload: !!state.deload };
     ui.warm = {};
     ui.noteEdit = null;
@@ -1133,6 +1227,19 @@ const actions = {
         if (next) $(`#ex-${next.id} [data-draft="r"]`)?.focus({ preventScroll: true });
       }, 450);
     }
+  },
+
+  'home-day'(el) {
+    ui.homeDay = el.dataset.day;
+    render();
+    $('.home-hero')?.scrollIntoView({ behavior: smoothScroll(), block: 'start' });
+  },
+
+  'home-peso'() {
+    ui.tab = 'corpo';
+    ui.dietTab = 'meta';
+    render();
+    window.scrollTo(0, 0);
   },
 
   'ex-expand'(el) {

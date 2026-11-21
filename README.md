@@ -18,7 +18,7 @@ A carga com que você termina um exercício vira a carga sugerida no próximo tr
 ## Funcionalidades
 
 - Divisão de 5 dias do livro (Peito, Costas, Ombros, Pernas, Braços), editável na aba **Plano**
-- Rodízio automático: o app sugere o próximo dia
+- **Tela inicial**: saudação, semanas seguidas treinando, cartão do treino de hoje (exercícios com a carga do dia e ▲ onde subiu, séries e tempo estimado, desenho do exercício principal), sequência dos dias (toque para trocar o treino), a semana de seg a dom, peso com o ritmo, último treino (cargas que subiram, recordes) e quanto falta para o deload
 - Treino com **um exercício aberto por vez**: feitos em verde (com séries e carga da próxima vez), o atual aberto em amarelo, os que faltam em cinza e os começados pela metade em amarelo fraco. Ao terminar um, o próximo abre sozinho (primeiro os que ficaram pela metade); tocar em qualquer linha abre aquele exercício. O topo mostra "Exercícios feitos X de Y"
 - **Plano** organizado: dias fechados mostrando os exercícios; abrir um dia lista os exercícios em linhas curtas e só um abre para edição por vez
 - **Como fazer**: desenho animado de cada exercício (posição inicial → final), músculos trabalhados e 3 dicas de execução. Exercícios novos podem usar qualquer desenho, escolhido no Plano
