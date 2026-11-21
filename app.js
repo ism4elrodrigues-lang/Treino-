@@ -282,6 +282,16 @@ function goToItem(id) {
   }, 450);
 }
 
+// Botão "Como fazer" com desenho e dicas (abre/fecha por item).
+function howtoBlock(key, fk, name) {
+  if (!fk) return '';
+  const open = !!ui.howto[key];
+  return `<button type="button" class="howto-btn" data-act="howto" data-ex="${esc(key)}" aria-expanded="${open}">
+      <span>Como fazer${name ? ` · <span class="muted">${esc(name)}</span>` : ''}</span><span class="chev" aria-hidden="true">▾</span>
+    </button>
+    ${open ? `<div class="howto" data-fig="${esc(fk)}"></div>` : ''}`;
+}
+
 function warmCard(it) {
   const ex = it.ex;
   const sets = exSetsDone(ex);
@@ -296,6 +306,7 @@ function warmCard(it) {
         <button type="button" class="btn small" data-act="ex-collapse" data-ex="${esc(it.id)}">Recolher ▴</button>
       </div>
     </div>
+    ${howtoBlock(it.id, figKey(ex), ex.name)}
     ${sets.length
       ? `<p class="small muted">Calculado com a 1ª série feita: <b>${kg(sets[0].weight)} kg</b></p>`
       : `<label class="field warm-base">Carga da 1ª série de ${esc(ex.name)} (kg)
