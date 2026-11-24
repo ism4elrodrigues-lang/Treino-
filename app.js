@@ -130,6 +130,7 @@ function viewSummary() {
       <span class="tag">${h.sets} séries${s.min ? ` · ${s.min} min` : ''}</span>
     </div></section>
     <button class="btn primary big" data-act="summary-close">Voltar ao início</button>
+    <button class="btn ghost small reopen-link" data-act="reopen">Finalizei sem querer: reabrir treino</button>
     ${next ? `<p class="small muted" style="text-align:center">Próximo treino: <b>${esc(next.name)}</b></p>` : ''}
   </div>`;
 }
@@ -260,7 +261,8 @@ function viewTreino() {
     lastCard = `<section class="card home-last">
       <span class="ic">✓</span>
       <div><p><b>Último treino: ${esc(ls.dayName)}</b> <span class="small muted">· ${L.parseIsoDate(ls.date).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })}</span></p>
-      <div class="tags">${ls.deload ? '<span class="tag">deload</span>' : ''}${F.compare(F.sessionVolume(ls)) ? `<span class="tag acc">${thingText(F.compare(F.sessionVolume(ls)))}</span>` : ''}${h.ups ? `<span class="tag ok">▲ ${h.ups} carga${h.ups > 1 ? 's' : ''} subi${h.ups > 1 ? 'ram' : 'u'}</span>` : ''}${h.records ? `<span class="tag acc">${h.records} recorde${h.records > 1 ? 's' : ''}</span>` : ''}<span class="tag">${h.sets} séries</span></div></div>
+      <div class="tags">${ls.deload ? '<span class="tag">deload</span>' : ''}${F.compare(F.sessionVolume(ls)) ? `<span class="tag acc">${thingText(F.compare(F.sessionVolume(ls)))}</span>` : ''}${h.ups ? `<span class="tag ok">▲ ${h.ups} carga${h.ups > 1 ? 's' : ''} subi${h.ups > 1 ? 'ram' : 'u'}</span>` : ''}${h.records ? `<span class="tag acc">${h.records} recorde${h.records > 1 ? 's' : ''}</span>` : ''}<span class="tag">${h.sets} séries</span></div>
+      ${ls.date === L.isoDate(now) ? '<button class="btn ghost small reopen-link" data-act="reopen">Reabrir treino</button>' : ''}</div>
     </section>`;
   }
 
@@ -278,6 +280,22 @@ function viewTreino() {
     ${hero}${seq}${week}${totalCard()}${weight}${lastCard}
     ${banner && (state.deload || st.level !== 'proximo') ? '' : deload}
   </div>`;
+}
+
+// Caixa de confirmação no lugar do botão "Finalizar treino".
+function finishConfirm(d) {
+  const missing = d.exercises.filter((e) => !exDone(e));
+  const none = !state.active.sets.length;
+  return `<section class="card finish-confirm" id="finish-confirm">
+    <h3>Finalizar o treino de ${esc(d.name)}?</h3>
+    <p class="small muted">${none ? 'Nenhuma série foi registrada. O treino será descartado.'
+      : missing.length ? `Ainda ${missing.length === 1 ? 'falta' : 'faltam'} ${missing.length} exercício${missing.length > 1 ? 's' : ''}: ${missing.map((e) => esc(e.name)).join(', ')}.`
+      : 'Todos os exercícios foram feitos.'}</p>
+    <div class="fc-btns">
+      <button class="btn" data-act="finish-cancel">Continuar treinando</button>
+      <button class="btn primary" data-act="finish">${none ? 'Descartar treino' : 'Sim, finalizar'}</button>
+    </div>
+  </section>`;
 }
 
 function viewActive() {
@@ -301,7 +319,7 @@ function viewActive() {
       }).join('');
     })()}
     ${d.exercises.length && d.exercises.every(exDone) ? '<p class="complete">Treino completo! Toque em Finalizar para salvar.</p>' : ''}
-    <button class="btn primary big" data-act="finish">Finalizar treino</button>`;
+    ${ui.confirmFinish ? finishConfirm(d) : '<button class="btn primary big" data-act="finish-ask">Finalizar treino</button>'}`;
 }
 
 // Exercício terminado = todas as séries planejadas registradas.
@@ -1371,6 +1389,7 @@ const actions = {
     const r = /^\d+$/.test(rRaw) ? parseInt(rRaw, 10) : null;
     if (w == null || w < 0) return toast('Informe a carga em kg.', true);
     if (r == null) return toast('Informe as repetições.', true);
+    ui.confirmFinish = false;
     state.active.sets.push({ exId, exName: found.ex.name, weight: w, reps: r, t: Date.now() });
     delete ui.drafts[exId];
     delete ui.extra[exId];
@@ -1388,6 +1407,37 @@ const actions = {
     render();
     ui.flash = null;
     if (justFinished) goToItem(next?.id ?? null);
+  },
+
+  reopen() {
+    const s = state.sessions.at(-1);
+    if (!s || state.active) return;
+    if (!confirm(`Reabrir o treino de ${s.dayName}? Ele volta a ficar em andamento e as cargas voltam a ser as de antes dele.`)) return;
+    const startProg = {};
+    if (!s.deload) {
+      for (const id of new Set(s.sets.map((x) => x.exId))) {
+        let before = s.progBefore ? s.progBefore[id] : undefined;
+        if (before === undefined) {
+          // treino salvo antes desta versão: reconstrói a carga de antes pela 1ª série feita
+          const first = s.sets.find((x) => x.exId === id);
+          before = { weight: first.weight, base: null, stall: Math.max(0, (state.prog[id]?.stall ?? 1) - 1) };
+        }
+        if (before) {
+          state.prog[id] = { ...before };
+          startProg[id] = { ...before };
+        } else delete state.prog[id];
+      }
+    }
+    state.sessions.pop();
+    state.active = {
+      id: s.id, dayId: s.dayId, date: s.date, startProg, deload: !!s.deload,
+      sets: s.sets.map((x) => ({ ...x, t: Date.now() })),
+    };
+    Object.assign(ui, { summary: null, current: null, open: {}, drafts: {}, extra: {}, confirmFinish: false, tab: 'treino' });
+    save();
+    toast('Treino reaberto. Continue de onde parou.');
+    render();
+    window.scrollTo(0, 0);
   },
 
   'summary-close'() {
@@ -1567,14 +1617,26 @@ const actions = {
     render();
   },
 
+  'finish-ask'() {
+    ui.confirmFinish = true;
+    render();
+    document.getElementById('finish-confirm')?.scrollIntoView({ behavior: smoothScroll(), block: 'center' });
+  },
+
+  'finish-cancel'() {
+    ui.confirmFinish = false;
+    render();
+  },
+
   finish() {
+    ui.confirmFinish = false;
     const a = state.active;
     if (!a.sets.length) {
-      if (confirm('Nenhuma série registrada. Descartar este treino?')) {
-        state.active = null;
-        save();
-        render();
-      }
+      state.active = null;
+      save();
+      stopTimer();
+      toast('Treino descartado.');
+      render();
       return;
     }
     const d = dayById(a.dayId);
@@ -1597,6 +1659,7 @@ const actions = {
       sets: a.sets.map(({ exId, exName, weight, reps, note }) => (note ? { exId, exName, weight, reps, note } : { exId, exName, weight, reps })),
       ...(a.deload ? { deload: true } : {}),
       ...(minutes ? { min: minutes } : {}),
+      ...(a.deload ? {} : { progBefore: Object.fromEntries(exIds.map((id) => [id, a.startProg[id] ?? null])) }),
     });
     state.active = null;
     save();
